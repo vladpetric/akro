@@ -1,0 +1,39 @@
+#!/usr/bin/env ruby
+
+# Copyright (c) 2016 Vlad Petric
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to
+# deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+# sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+# IN THE SOFTWARE.
+
+begin
+  require 'rubygems'
+  gem 'akro'
+rescue LoadError
+end
+
+AkroTest = Struct.new("AkroTest", :name, :script, :binary, :cmdline)
+$AKRO_TESTS = []
+def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
+  $AKRO_TESTS << AkroTest.new(name, script, binary, cmdline)
+end
+
+require 'akro'
+rake_import = "#{File.dirname(File.expand_path(File.dirname(File.readlink(__FILE__))))}/lib/akrobuild.rake"
+puts "Will import #{rake_import}"
+Rake.application.add_import(rake_import)
+Rake.application.run
