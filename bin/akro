@@ -33,7 +33,6 @@ def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
 end
 
 require 'akro'
-rake_import = "#{File.dirname(File.expand_path(File.dirname(File.readlink(__FILE__))))}/lib/akrobuild.rake"
-puts "Will import #{rake_import}"
+rake_import = "#{File.dirname(File.dirname(File.realdirpath(__FILE__)))}/lib/akrobuild.rake"
 Rake.application.add_import(rake_import)
 Rake.application.run
