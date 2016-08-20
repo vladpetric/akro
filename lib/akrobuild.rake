@@ -17,9 +17,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
-# All rights reserved
-# This file is distributed subject to GNU GPL version 3. See the files
-# GPLv3.txt and License.txt in the instructions subdirectory for details.
 
 # Akro build is a C++ build system with automated dependency tracking.
 # See the README file for a detailed description.
