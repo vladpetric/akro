@@ -32,6 +32,18 @@ def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
   $AKRO_TESTS << AkroTest.new(name, script, binary, cmdline)
 end
 
+def add_tests(*tests)
+  tests.each do |t|
+    if t.respond_to?(:to_str)
+      s = t.to_str()
+      add_test(name: s, script: s, binary: s, cmdline: nil)
+    elsif t.is_a?(AkroTest)
+      $AKRO_TESTS << t
+    else
+      raise "Can't add test of class #{t.class.name} "
+    end
+  end
+end
 require 'akro'
 rake_import = "#{File.dirname(File.dirname(File.realdirpath(__FILE__)))}/lib/akrobuild.rake"
 Rake.application.add_import(rake_import)
