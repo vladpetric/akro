@@ -44,8 +44,8 @@ $AKRO_LINK_FLAGS = $LINK_FLAGS.nil? ? $AKRO_COMPILE_FLAGS : $LINK_FLAGS
 $AKRO_MODE_LINK_FLAGS = $MODE_LINK_FLAGS.nil? ? $AKRO_MODE_COMPILE_FLAGS : $MODE_LINK_FLAGS 
 $AKRO_ADDITIONAL_LINK_FLAGS = $ADDITIONAL_LINK_FLAGS.nil? ? "" : $ADDITIONAL_LINK_FLAGS
 
-$HEADER_EXTENSIONS = [".h", ".hpp"]
-$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++"]
+$HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
+$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
 $OBJ_EXTENSION = ".o"
 
 module Util
