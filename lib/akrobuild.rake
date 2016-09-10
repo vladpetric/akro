@@ -308,3 +308,11 @@ task :clean do
   FileUtils::rm_rf(".akro/")
   $MODES.each{|mode| FileUtils::rm_rf("#{mode}/")}
 end
+
+$MODES.each do |mode|
+  task mode
+  $AKRO_BINARIES.each do |bin|
+    raise "Binary cannot start with mode #{bin}" if bin.start_with?(mode + "/")
+    Rake::Task[mode].enhance(["#{mode}/#{bin}"])
+  end
+end

@@ -20,6 +20,14 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
+
+# At the top level, Akro is a wrapper around rake. The reason for
+# the wrapping is that rake does not allow pre-loads before the
+# rakefile. 
+# Akro needs to define several functions: add_test, add_binary(ies),
+# add_library before a rakefile is processed. The akro main file,
+# akrobuild.rake, is postloaded.
+#
 begin
   require 'rubygems'
   gem 'akro'
@@ -31,6 +39,19 @@ $AKRO_TESTS = []
 def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
   $AKRO_TESTS << AkroTest.new(name, script, binary, cmdline)
 end
+
+$AKRO_BINARIES = []
+def add_binary(path)
+  $AKRO_BINARIES << path.to_str()
+end
+
+def add_binaries(*paths)
+  paths.each do |path|
+    $AKRO_BINARIES << path.to_str()
+  end
+end
+
+AkroLibrary = Struct.new("AkroLibrary", :name, :sources, :static, :recurse, :capture)
 
 def add_tests(*tests)
   tests.each do |t|
