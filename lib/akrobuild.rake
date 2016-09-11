@@ -174,6 +174,9 @@ module Builder
   def Builder.static_lib_cmdline(objs, bin)
     "#{$AKRO_AR} rcs #{bin} #{objs.join(' ')}"
   end
+  def Builder.dynamic_library_cmdline(mode, objs, bin)
+    "#{$AKRO_COMPILER_PREFIX}#{$AKRO_COMPILER} -shared #{$AKRO_COMPILE_FLAGS} #{$AKRO_MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
+  end
   def Builder.create_depcache(src, dc)
     success = false
     mode = FileMapper.get_mode_from_dc(dc)
@@ -224,6 +227,15 @@ module Builder
     FileUtils.mkdir_p(basedir)
     RakeFileUtils::sh(Builder.static_lib_cmdline(objs, bin)) do |ok, res|
       raise "Archiving failed for #{bin}" if !ok
+    end
+  end
+
+  def Builder.build_dynamic_library(mode, objs, bin)
+    mode = FileMapper.get_mode(bin)
+    basedir, _ = File.split(bin)
+    FileUtils.mkdir_p(basedir)
+    RakeFileUtils::sh(Builder.dynamic_library_cmdline(mode, objs, bin)) do |ok, res|
+      raise "Building dynamic library #{bin} failed" if !ok
     end
   end
 
@@ -382,6 +394,40 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
   objs
 } do |task|
   Builder.archive_static_library(task.prerequisites, task.name)
+end
+
+rule $DYNAMIC_LIB_EXTENSION => ->(library) {
+  puts "Dynamic library #{library}"
+  mode = FileMapper.get_mode(library)
+  srcs = []
+  lib = FileMapper.strip_mode(library)[0..-$DYNAMIC_LIB_EXTENSION.length-1]
+  libspec = nil
+  $AKRO_LIBS.each do |alib|
+    if alib.path == lib and not alib.static
+      raise "Library #{library} declared multiple times" if !libspec.nil?
+      libspec = alib
+      srcs << alib.sources
+    end
+  end
+  raise "Library #{library} not found!" if libspec.nil?
+  srcs.flatten!
+  if libspec.recurse
+    objs = Builder.depcache_object_collect(mode, srcs)
+  else
+    objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
+  end
+  if libspec.capture_deps
+    objs.each do |obj|
+      if $LIB_CAPTURE_MAP.has_key?(obj)
+        raise "Object #{obj} has dependency captures for multiple libraries - #{$LIB_CAPTURE_MAP[obj]} and #{library}"
+      end
+      $LIB_CAPTURE_MAP[obj] = library
+    end
+  end
+  objs
+} do |task|
+  mode = FileMapper.get_mode(task.name)
+  Builder.build_dynamic_library(mode, task.prerequisites, task.name)
 end
 
 task :clean do
