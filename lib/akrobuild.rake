@@ -23,7 +23,6 @@
 #
 # Akro build is inspired by Maxim Trokhimtchouk's autobuild
 # https://github.com/petver29/autobuild
-#
 # Although it borrows many ideas from autobuild, it is a from-scratch, clean-room
 # implementation.
 
@@ -36,6 +35,8 @@ $AKRO_MODE_COMPILE_FLAGS = $MODE_COMPILE_FLAGS.nil? ? {
   "release" => "-O3 -g3"
 } : $MODE_COMPILE_FLAGS
 
+$AKRO_AR = $AR.nil? ? "ar" : $AR
+
 $MODES = $AKRO_MODE_COMPILE_FLAGS.keys
 
 $AKRO_LINKER_PREFIX = $LINKER_PREFIX.nil? ? $AKRO_COMPILER_PREFIX : $LINKER_PREFIX + " "
@@ -47,6 +48,10 @@ $AKRO_ADDITIONAL_LINK_FLAGS = $ADDITIONAL_LINK_FLAGS.nil? ? "" : $ADDITIONAL_LIN
 $HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
 $CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
 $OBJ_EXTENSION = ".o"
+$STATIC_LIB_EXTENSION = ".a"
+$DYNAMIC_LIB_EXTENSION = ".so"
+
+$LIB_CAPTURE_MAP = Hash.new
 
 module Util
   def Util.make_relative_path(path)
@@ -166,6 +171,9 @@ module Builder
   def Builder.link_cmdline(mode, objs, bin)
     "#{$AKRO_LINKER_PREFIX}#{$AKRO_LINKER} #{$AKRO_LINK_FLAGS} #{$AKRO_MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$AKRO_ADDITIONAL_LINK_FLAGS} -o #{bin}"
   end
+  def Builder.static_lib_cmdline(objs, bin)
+    "#{$AKRO_AR} rcs #{bin} #{objs.join(' ')}"
+  end
   def Builder.create_depcache(src, dc)
     success = false
     mode = FileMapper.get_mode_from_dc(dc)
@@ -211,6 +219,13 @@ module Builder
       raise "Linking failed for #{bin}" if !ok
     end
   end
+  def Builder.archive_static_library(objs, bin)
+    basedir, _ = File.split(bin)
+    FileUtils.mkdir_p(basedir)
+    RakeFileUtils::sh(Builder.static_lib_cmdline(objs, bin)) do |ok, res|
+      raise "Archiving failed for #{bin}" if !ok
+    end
+  end
 
   def Builder.depcache_object_collect(mode, top_level_srcs)
     all_covered_cpps = Set.new
@@ -223,7 +238,7 @@ module Builder
       dcs.each do |dc|
         cpp = FileMapper.map_dc_to_cpp(dc)
         obj = FileMapper.map_cpp_to_obj(mode, cpp)
-        all_objects << obj
+        all_objects << obj if !all_objects.include?(obj)
         File.readlines(dc).map{|line| line.strip}.each do |header|
           new_cpp = FileMapper.map_header_to_cpp(header)
           if !new_cpp.nil? and !all_covered_cpps.include?(new_cpp)
@@ -294,14 +309,79 @@ rule $OBJ_EXTENSION => ->(obj){
   Builder.compile_object(src, task.name)
 end
 
+def libname(mode, lib)
+  "#{mode}/#{lib.path}#{if lib.static then $STATIC_LIB_EXTENSION else $DYNAMIC_LIB_EXTENSION end}"
+end
+
+def invoke_all_capturing_libs(mode)
+  $AKRO_LIBS.each do |lib|
+    if lib.capture_deps 
+      Rake::Task[libname(mode, lib)].invoke
+    end
+  end
+end
+
 rule ".exe" => ->(binary){
   obj = binary.gsub(/\.exe$/, $OBJ_EXTENSION)
   mode = FileMapper.get_mode(binary)
+  invoke_all_capturing_libs(mode)
   cpp = FileMapper.map_obj_to_cpp(obj)
   raise "No proper #{$CPP_EXTENSIONS.join(',')} file found for #{binary}" if cpp.nil?
-  [FileMapper.map_exe_to_linkcmd(binary)] + Builder.depcache_object_collect(mode, [cpp])
+  obj_list = []
+  # Two passes through the object list - the capturing libraries will
+  # be inserted on the position of the *last* object in the list
+  last_obj = Hash.new
+  objs = Builder.depcache_object_collect(mode, [cpp])
+  objs.each do |obj|
+    if $LIB_CAPTURE_MAP.has_key?(obj)
+      last_obj[$LIB_CAPTURE_MAP[obj]] = obj
+    end
+  end
+  objs.each do |obj|
+    if $LIB_CAPTURE_MAP.has_key?(obj)
+      capture_lib = $LIB_CAPTURE_MAP[obj]
+      if last_obj[capture_lib] == obj
+        obj_list << capture_lib
+      end
+    else
+      obj_list << obj
+    end
+  end
+  [FileMapper.map_exe_to_linkcmd(binary)] + obj_list
 } do |task|
   Builder.link_binary(task.prerequisites[1..-1], task.name)
+end
+
+rule $STATIC_LIB_EXTENSION => ->(library) {
+  mode = FileMapper.get_mode(library)
+  srcs = []
+  lib = FileMapper.strip_mode(library)[0..-$STATIC_LIB_EXTENSION.length-1]
+  libspec = nil
+  $AKRO_LIBS.each do |alib|
+    if alib.path == lib and alib.static
+      raise "Library #{library} declared multiple times" if !libspec.nil?
+      libspec = alib
+      srcs << alib.sources
+    end
+  end
+  raise "Library #{library} not found!" if libspec.nil?
+  srcs.flatten!
+  if libspec.recurse
+    objs = Builder.depcache_object_collect(mode, srcs)
+  else
+    objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
+  end
+  if libspec.capture_deps
+    objs.each do |obj|
+      if $LIB_CAPTURE_MAP.has_key?(obj)
+        raise "Object #{obj} has dependency captures for multiple libraries - #{$LIB_CAPTURE_MAP[obj]} and #{library}"
+      end
+      $LIB_CAPTURE_MAP[obj] = library
+    end
+  end
+  objs
+} do |task|
+  Builder.archive_static_library(task.prerequisites, task.name)
 end
 
 task :clean do

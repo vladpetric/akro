@@ -51,7 +51,14 @@ def add_binaries(*paths)
   end
 end
 
-AkroLibrary = Struct.new("AkroLibrary", :name, :sources, :static, :recurse, :capture)
+AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps)
+$AKRO_LIBS = []
+
+def add_library(path: nil, sources: nil, static: true, recurse: true, capture_deps: true)
+  raise "Must specify path for library" if path.nil?
+  raise "Must specify source for library #{path}" if sources.nil?
+  $AKRO_LIBS << AkroLibrary.new(path, sources, static, recurse, capture_deps)
+end
 
 def add_tests(*tests)
   tests.each do |t|
