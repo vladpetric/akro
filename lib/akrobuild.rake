@@ -397,7 +397,6 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
 end
 
 rule $DYNAMIC_LIB_EXTENSION => ->(library) {
-  puts "Dynamic library #{library}"
   mode = FileMapper.get_mode(library)
   srcs = []
   lib = FileMapper.strip_mode(library)[0..-$DYNAMIC_LIB_EXTENSION.length-1]
@@ -436,7 +435,7 @@ task :clean do
 end
 
 $MODES.each do |mode|
-  task mode
+  multitask mode
   $AKRO_BINARIES.each do |bin|
     raise "Binary cannot start with mode #{bin}" if bin.start_with?(mode + "/")
     Rake::Task[mode].enhance(["#{mode}/#{bin}"])
