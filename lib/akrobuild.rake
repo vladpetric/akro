@@ -26,32 +26,12 @@
 # Although it borrows many ideas from autobuild, it is a from-scratch, clean-room
 # implementation.
 
-$AKRO_VERBOSE = $VERBOSE_BUILD.nil? ? false : $VERBOSE_BUILD
-$AKRO_COMPILER_PREFIX = $COMPILER_PREFIX.nil? ? "" : $COMPILER_PREFIX + " "
-$AKRO_COMPILER = $COMPILER.nil? ? "g++" : $COMPILER
-$AKRO_COMPILE_FLAGS = $COMPILE_FLAGS.nil? ? "-Wall" : $COMPILE_FLAGS
-$AKRO_MODE_COMPILE_FLAGS = $MODE_COMPILE_FLAGS.nil? ? {
-  "debug" => "-g3",
-  "release" => "-O3 -g3"
-} : $MODE_COMPILE_FLAGS
-
-$AKRO_AR = $AR.nil? ? "ar" : $AR
-
-$MODES = $AKRO_MODE_COMPILE_FLAGS.keys
-
-$AKRO_LINKER_PREFIX = $LINKER_PREFIX.nil? ? $AKRO_COMPILER_PREFIX : $LINKER_PREFIX + " "
-$AKRO_LINKER = $LINKER.nil? ? $AKRO_COMPILER : $LINKER
-$AKRO_LINK_FLAGS = $LINK_FLAGS.nil? ? $AKRO_COMPILE_FLAGS : $LINK_FLAGS
-$AKRO_MODE_LINK_FLAGS = $MODE_LINK_FLAGS.nil? ? $AKRO_MODE_COMPILE_FLAGS : $MODE_LINK_FLAGS 
-$AKRO_ADDITIONAL_LINK_FLAGS = $ADDITIONAL_LINK_FLAGS.nil? ? "" : $ADDITIONAL_LINK_FLAGS
-
-$HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
-$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
-$OBJ_EXTENSION = ".o"
-$STATIC_LIB_EXTENSION = ".a"
-$DYNAMIC_LIB_EXTENSION = ".so"
-
-$LIB_CAPTURE_MAP = Hash.new
+$MODES = $MODE_COMPILE_FLAGS.keys
+$COMPILER_PREFIX = $COMPILER_PREFIX.nil? ? "" : $COMPILER_PREFIX + " "
+$LINKER_PREFIX = $LINKER_PREFIX.nil? ? $COMPILER_PREFIX : $LINKER_PREFIX + " "
+$LINKER = $LINKER.nil? ? $COMPILER : $LINKER
+$LINK_FLAGS = $LINK_FLAGS.nil? ? $COMPILE_FLAGS : $LINK_FLAGS
+$MODE_LINK_FLAGS = $MODE_LINK_FLAGS.nil? ? $MODE_COMPILE_FLAGS : $MODE_LINK_FLAGS 
 
 module Util
   def Util.make_relative_path(path)
@@ -157,7 +137,7 @@ end
 #Builder encapsulates the compilation/linking/dependecy checking functionality
 module Builder
   def Builder.compile_base_cmdline(mode)
-    "#{$AKRO_COMPILER_PREFIX}#{$AKRO_COMPILER} #{$AKRO_COMPILE_FLAGS} #{$AKRO_MODE_COMPILE_FLAGS[mode]}"
+    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}"
   end
   def Builder.dependency_cmdline(mode, src)
     "#{Builder.compile_base_cmdline(mode)} -M #{src}"
@@ -166,16 +146,16 @@ module Builder
     "#{Builder.compile_base_cmdline(mode)} -c #{src} -o #{obj}"
   end
   def Builder.link_cmdline_placeholder(mode)
-    "#{$AKRO_LINKER_PREFIX}#{$AKRO_LINKER} #{$AKRO_LINK_FLAGS} #{$AKRO_MODE_LINK_FLAGS[mode]} <placeholder for objs> #{$AKRO_ADDITIONAL_LINK_FLAGS} -o <placeholder for binary>"
+    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} <placeholder for objs> #{$ADDITIONAL_LINK_FLAGS} -o <placeholder for binary>"
   end
   def Builder.link_cmdline(mode, objs, bin)
-    "#{$AKRO_LINKER_PREFIX}#{$AKRO_LINKER} #{$AKRO_LINK_FLAGS} #{$AKRO_MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$AKRO_ADDITIONAL_LINK_FLAGS} -o #{bin}"
+    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS} -o #{bin}"
   end
   def Builder.static_lib_cmdline(objs, bin)
-    "#{$AKRO_AR} rcs #{bin} #{objs.join(' ')}"
+    "#{$AR} rcs #{bin} #{objs.join(' ')}"
   end
   def Builder.dynamic_library_cmdline(mode, objs, bin)
-    "#{$AKRO_COMPILER_PREFIX}#{$AKRO_COMPILER} -shared #{$AKRO_COMPILE_FLAGS} #{$AKRO_MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
+    "#{$COMPILER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
   end
   def Builder.create_depcache(src, dc)
     success = false
@@ -183,11 +163,11 @@ module Builder
     basedir, _ = File.split(dc)
     FileUtils.mkdir_p(basedir)
     output = File.open(dc, "w")
-    puts "Determining dependencies for #{dc}" if $AKRO_VERBOSE
+    puts "Determining dependencies for #{dc}" if $VERBOSE_BUILD
     begin
       #Using backticks as Rake's sh outputs the command. Don't want that here.
       cmdline = Builder.dependency_cmdline(mode, src)
-      puts cmdline if $AKRO_VERBOSE
+      puts cmdline if $VERBOSE_BUILD
       deps = `#{cmdline}`
       raise "Dependency determination failed for #{src}" if $?.to_i != 0
       # NOTE(vlad): spaces within included filenames are not supported
