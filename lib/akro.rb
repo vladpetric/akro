@@ -87,3 +87,25 @@ def add_tests(*tests)
     end
   end
 end
+
+# Module with overrideable command line functions
+module CmdLine
+  def CmdLine.compile_base_cmdline(mode)
+    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}"
+  end
+  def CmdLine.dependency_cmdline(mode, src)
+    "#{CmdLine.compile_base_cmdline(mode)} -M #{src}"
+  end
+  def CmdLine.compile_cmdline(mode, src, obj)
+    "#{CmdLine.compile_base_cmdline(mode)} -c #{src} -o #{obj}"
+  end
+  def CmdLine.link_cmdline(mode, objs, bin)
+    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS} -o #{bin}"
+  end
+  def CmdLine.static_lib_cmdline(objs, bin)
+    "#{$AR} rcs #{bin} #{objs.join(' ')}"
+  end
+  def CmdLine.dynamic_lib_cmdline(mode, objs, bin)
+    "#{$LINKER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
+  end
+end

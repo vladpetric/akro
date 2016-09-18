@@ -18,14 +18,6 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
-# Akro build is a C++ build system with automated dependency tracking.
-# See the README file for a detailed description.
-#
-# Akro build is inspired by Maxim Trokhimtchouk's autobuild
-# https://github.com/petver29/autobuild
-# Although it borrows many ideas from autobuild, it is a from-scratch, clean-room
-# implementation.
-
 $MODES = $MODE_COMPILE_FLAGS.keys
 $COMPILER_PREFIX = $COMPILER_PREFIX.nil? ? "" : $COMPILER_PREFIX + " "
 $LINKER_PREFIX = $LINKER_PREFIX.nil? ? $COMPILER_PREFIX : $LINKER_PREFIX + " "
@@ -117,6 +109,21 @@ module FileMapper
   def FileMapper.map_exe_to_linkcmd(path)
     ".akro/#{path.gsub(/\.exe$/, ".linkcmd" )}"
   end
+  def FileMapper.map_linkcmd_to_exe(path)
+    path[/^.akro\/(.*)\.linkcmd$/, 1] + ".exe"
+  end
+  def FileMapper.map_static_lib_to_linkcmd(path)
+    ".akro/#{path.gsub(/#{$STATIC_LIB_EXTENSION}$/, ".stlinkcmd" )}"
+  end
+  def FileMapper.map_linkcmd_to_static_lib(path)
+    path[/^.akro\/(.*)\.stlinkcmd$/, 1] + $STATIC_LIB_EXTENSION
+  end
+  def FileMapper.map_dynamic_lib_to_linkcmd(path)
+    ".akro/#{path.gsub(/#{$DYNAMIC_LIB_EXTENSION}$/, ".dynlinkcmd" )}"
+  end
+  def FileMapper.map_linkcmd_to_dynamic_lib(path)
+    path[/^.akro\/(.*)\.dynlinkcmd$/, 1] + $DYNAMIC_LIB_EXTENSION
+  end
   # Maps header file to its corresponding cpp file, if it exists
   # E.g., a/b/c.h maps to a/b/c.cpp, if a/b/c.cpp exists, otherwise nil
   def FileMapper.map_header_to_cpp(path)
@@ -136,27 +143,6 @@ end
 
 #Builder encapsulates the compilation/linking/dependecy checking functionality
 module Builder
-  def Builder.compile_base_cmdline(mode)
-    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}"
-  end
-  def Builder.dependency_cmdline(mode, src)
-    "#{Builder.compile_base_cmdline(mode)} -M #{src}"
-  end
-  def Builder.compile_cmdline(mode, src, obj)
-    "#{Builder.compile_base_cmdline(mode)} -c #{src} -o #{obj}"
-  end
-  def Builder.link_cmdline_placeholder(mode)
-    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} <placeholder for objs> #{$ADDITIONAL_LINK_FLAGS} -o <placeholder for binary>"
-  end
-  def Builder.link_cmdline(mode, objs, bin)
-    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS} -o #{bin}"
-  end
-  def Builder.static_lib_cmdline(objs, bin)
-    "#{$AR} rcs #{bin} #{objs.join(' ')}"
-  end
-  def Builder.dynamic_library_cmdline(mode, objs, bin)
-    "#{$COMPILER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
-  end
   def Builder.create_depcache(src, dc)
     success = false
     mode = FileMapper.get_mode_from_dc(dc)
@@ -166,7 +152,7 @@ module Builder
     puts "Determining dependencies for #{dc}" if $VERBOSE_BUILD
     begin
       #Using backticks as Rake's sh outputs the command. Don't want that here.
-      cmdline = Builder.dependency_cmdline(mode, src)
+      cmdline = CmdLine.dependency_cmdline(mode, src)
       puts cmdline if $VERBOSE_BUILD
       deps = `#{cmdline}`
       raise "Dependency determination failed for #{src}" if $?.to_i != 0
@@ -189,7 +175,7 @@ module Builder
     mode = FileMapper.get_mode(obj)
     basedir, _ = File.split(obj)
     FileUtils.mkdir_p(basedir)
-    RakeFileUtils::sh(Builder.compile_cmdline(mode, src, obj)) do |ok, res|
+    RakeFileUtils::sh(CmdLine.compile_cmdline(mode, src, obj)) do |ok, res|
       raise "Compilation failed for #{src}" if !ok
     end
   end
@@ -198,14 +184,14 @@ module Builder
     mode = FileMapper.get_mode(bin)
     basedir, _ = File.split(bin)
     FileUtils.mkdir_p(basedir)
-    RakeFileUtils::sh(Builder.link_cmdline(mode, objs, bin)) do |ok, res|
+    RakeFileUtils::sh(CmdLine.link_cmdline(mode, objs, bin)) do |ok, res|
       raise "Linking failed for #{bin}" if !ok
     end
   end
   def Builder.archive_static_library(objs, bin)
     basedir, _ = File.split(bin)
     FileUtils.mkdir_p(basedir)
-    RakeFileUtils::sh(Builder.static_lib_cmdline(objs, bin)) do |ok, res|
+    RakeFileUtils::sh(CmdLine.static_lib_cmdline(objs, bin)) do |ok, res|
       raise "Archiving failed for #{bin}" if !ok
     end
   end
@@ -214,7 +200,7 @@ module Builder
     mode = FileMapper.get_mode(bin)
     basedir, _ = File.split(bin)
     FileUtils.mkdir_p(basedir)
-    RakeFileUtils::sh(Builder.dynamic_library_cmdline(mode, objs, bin)) do |ok, res|
+    RakeFileUtils::sh(CmdLine.dynamic_lib_cmdline(mode, objs, bin)) do |ok, res|
       raise "Building dynamic library #{bin} failed" if !ok
     end
   end
@@ -250,7 +236,7 @@ task "always"
   
 rule ".compcmd" => ->(dc) {
   mode = FileMapper.get_mode_from_dc(dc)
-  cmd = Builder.compile_base_cmdline(mode)
+  cmd = CmdLine.compile_base_cmdline(mode)
   if File.exists?(dc) && File.read(dc).strip == cmd then
     []
   else
@@ -261,13 +247,15 @@ rule ".compcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_dc(task.name)
-  output << Builder.compile_base_cmdline(mode) << "\n"
+  output << CmdLine.compile_base_cmdline(mode) << "\n"
   output.close
 end
 
 rule ".linkcmd" => ->(dc) {
+  binary = FileMapper.map_linkcmd_to_exe(dc)
+  raise "Internal error - linkcmd not mapped for #{binary}" if !$LINK_BINARY_OBJS.has_key?(binary)
   mode = FileMapper.get_mode_from_dc(dc)
-  cmd = Builder.link_cmdline_placeholder(mode)
+  cmd = CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>")
   if File.exists?(dc) && File.read(dc).strip == cmd then
     []
   else
@@ -275,12 +263,54 @@ rule ".linkcmd" => ->(dc) {
   end
 } do |task|
   basedir, _ = File.split(task.name)
+  binary = FileMapper.map_linkcmd_to_exe(task.name)
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_dc(task.name)
-  output << Builder.link_cmdline_placeholder(mode) << "\n"
+  output << CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>") << "\n"
   output.close
 end
+
+rule ".dynlinkcmd" => ->(dc) {
+  dynlib = FileMapper.map_linkcmd_to_dynamic_lib(dc)
+  raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
+  mode = FileMapper.get_mode_from_dc(dc)
+  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "<placeholder>")
+  if File.exists?(dc) && File.read(dc).strip == cmd then
+    []
+  else
+    "always"
+  end
+} do |task|
+  basedir, _ = File.split(task.name)
+  dynlib = FileMapper.map_linkcmd_to_dynamic_lib(task.name)
+  FileUtils.mkdir_p(basedir)
+  output = File.open(task.name, "w")
+  mode = FileMapper.get_mode_from_dc(task.name)
+  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "<placeholder>") << "\n"
+  output.close
+end
+
+rule ".stlinkcmd" => ->(dc) {
+  stlib = FileMapper.map_linkcmd_to_static_lib(dc)
+  raise "Internal error - linkcmd not mapped for #{stlib}" if !$LINK_BINARY_OBJS.has_key?(stlib)
+  mode = FileMapper.get_mode_from_dc(dc)
+  cmd = CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>")
+  if File.exists?(dc) && File.read(dc).strip == cmd then
+    []
+  else
+    "always"
+  end
+} do |task|
+  basedir, _ = File.split(task.name)
+  stlib = FileMapper.map_linkcmd_to_static_lib(task.name)
+  FileUtils.mkdir_p(basedir)
+  output = File.open(task.name, "w")
+  mode = FileMapper.get_mode_from_dc(task.name)
+  output << CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>") << "\n"
+  output.close
+end
+
 
 rule ".depcache" => ->(dc){
   [FileMapper.map_dc_to_compcmd(dc), FileMapper.map_dc_to_cpp(dc)] + 
@@ -313,6 +343,8 @@ def invoke_all_capturing_libs(mode)
   end
 end
 
+$LINK_BINARY_OBJS = Hash.new
+
 rule ".exe" => ->(binary){
   obj = binary.gsub(/\.exe$/, $OBJ_EXTENSION)
   mode = FileMapper.get_mode(binary)
@@ -339,6 +371,7 @@ rule ".exe" => ->(binary){
       obj_list << obj
     end
   end
+  $LINK_BINARY_OBJS[binary] = obj_list
   [FileMapper.map_exe_to_linkcmd(binary)] + obj_list
 } do |task|
   Builder.link_binary(task.prerequisites[1..-1], task.name)
@@ -371,9 +404,10 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
       $LIB_CAPTURE_MAP[obj] = library
     end
   end
-  objs
+  $LINK_BINARY_OBJS[library] = objs
+  [FileMapper.map_static_lib_to_linkcmd(library)] + objs
 } do |task|
-  Builder.archive_static_library(task.prerequisites, task.name)
+  Builder.archive_static_library(task.prerequisites[1..-1], task.name)
 end
 
 rule $DYNAMIC_LIB_EXTENSION => ->(library) {
@@ -403,10 +437,11 @@ rule $DYNAMIC_LIB_EXTENSION => ->(library) {
       $LIB_CAPTURE_MAP[obj] = library
     end
   end
-  objs
+  $LINK_BINARY_OBJS[library] = objs
+  [FileMapper.map_dynamic_lib_to_linkcmd(library)] + objs
 } do |task|
   mode = FileMapper.get_mode(task.name)
-  Builder.build_dynamic_library(mode, task.prerequisites, task.name)
+  Builder.build_dynamic_library(mode, task.prerequisites[1..-1], task.name)
 end
 
 task :clean do
@@ -415,7 +450,7 @@ task :clean do
 end
 
 $MODES.each do |mode|
-  multitask mode
+  task mode
   $AKRO_BINARIES.each do |bin|
     raise "Binary cannot start with mode #{bin}" if bin.start_with?(mode + "/")
     Rake::Task[mode].enhance(["#{mode}/#{bin}"])
