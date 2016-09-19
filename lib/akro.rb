@@ -51,8 +51,15 @@ $LIB_CAPTURE_MAP = Hash.new
 
 AkroTest = Struct.new("AkroTest", :name, :script, :binary, :cmdline)
 $AKRO_TESTS = []
+$AKRO_TESTS_MAP = Hash.new
 def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
-  $AKRO_TESTS << AkroTest.new(name, script, binary, cmdline)
+  raise "Test must have a name" if name.nil?
+  raise "Test must have at least a script and a binary" if script.nil? and binary.nil?
+  raise "Binary must end in .exe" if !binary.nil? and !binary.end_with?(".exe")
+  test = AkroTest.new(name, script, binary, cmdline)
+  $AKRO_TESTS << test
+  raise "Test #{name} appears multiple times" if $AKRO_TESTS_MAP.has_key?(name)
+  $AKRO_TESTS_MAP[name] = test
 end
 
 $AKRO_BINARIES = []

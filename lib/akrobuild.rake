@@ -139,6 +139,12 @@ module FileMapper
     raise "Multiple sources for base name #{path}: #{srcs.join(' ')}" if srcs.length > 1
     srcs.length == 0? nil : srcs[0]
   end
+   
+  def FileMapper.map_script_to_exe(path)
+    path_no_ext = path[/^(.*)[^.\/]*$/, 1]
+    srcs = $CPP_EXTENSIONS.map{|cppext| path + cppext}.select{|file| File.exist?(file)}
+    srcs.length == 0? nil : path + ".exe"
+  end
 end
 
 #Builder encapsulates the compilation/linking/dependecy checking functionality
@@ -451,8 +457,28 @@ end
 
 $MODES.each do |mode|
   task mode
+  task "test_#{mode}"
   $AKRO_BINARIES.each do |bin|
     raise "Binary cannot start with mode #{bin}" if bin.start_with?(mode + "/")
     Rake::Task[mode].enhance(["#{mode}/#{bin}"])
+  end
+  $AKRO_TESTS.each do |test|
+    test_dep = 
+      if !test.binary.nil?
+        "#{mode}/#{test.binary}"
+      else
+        # map_script_to_exe may return nil, which is fine
+        FileMapper.map_script_to_exe(test.script)
+      end
+    task "#{test.name}_test_#{mode}" => test_dep do |task|
+      puts "Running test #{task.name}"
+      base = (if !test.script.nil? then "MODE=#{mode} #{test.script}" else "#{mode}/#{test.binary}" end)
+      params = (if !test.cmdline.nil? then " " + test.cmdline else "" end)
+      RakeFileUtils::sh(base + params) do |ok, res|
+        raise "Test #{task.name} failed" if !ok
+      end
+      puts "Test #{task.name} passed"
+    end
+    Rake::Task["test_#{mode}"].enhance(["#{test.name}_test_#{mode}"])
   end
 end
