@@ -73,13 +73,13 @@ def add_binaries(*paths)
   end
 end
 
-AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps)
+AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps, :additional_params)
 $AKRO_LIBS = []
 
-def add_library(path: nil, sources: nil, static: true, recurse: true, capture_deps: true)
+def add_library(path: nil, sources: nil, static: true, recurse: true, capture_deps: true, additional_params: nil)
   raise "Must specify path for library" if path.nil?
   raise "Must specify source for library #{path}" if sources.nil?
-  $AKRO_LIBS << AkroLibrary.new(path, sources, static, recurse, capture_deps)
+  $AKRO_LIBS << AkroLibrary.new(path, sources, static, recurse, capture_deps, additional_params)
 end
 
 def add_tests(*tests)
@@ -112,7 +112,19 @@ module CmdLine
   def CmdLine.static_lib_cmdline(objs, bin)
     "#{$AR} rcs #{bin} #{objs.join(' ')}"
   end
-  def CmdLine.dynamic_lib_cmdline(mode, objs, bin)
-    "#{$LINKER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{bin} -o #{bin} #{objs.join(' ')} "
+  def CmdLine.dynamic_lib_cmdline(mode, objs, additional_params, bin)
+    if !additional_params.nil?
+      if additional_params.kind_of?(Array)
+        extra_params = " " + objs.join(" ")
+      elsif additional_params.respond_to?(:to_str)
+        extra_params = " " + additional_params.to_str
+      else
+        raise "Additional params to a dynamic library must be either a string or an array of strings"
+      end
+    else
+      extra_params = ""
+    end
+    soname = if bin.include?("/") then FileMapper.strip_mode(bin) else bin end
+    "#{$LINKER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{soname} -o #{bin} #{objs.join(' ')}#{extra_params}"
   end
 end

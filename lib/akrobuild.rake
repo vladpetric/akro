@@ -202,11 +202,11 @@ module Builder
     end
   end
 
-  def Builder.build_dynamic_library(mode, objs, bin)
+  def Builder.build_dynamic_library(mode, objs, additional_params, bin)
     mode = FileMapper.get_mode(bin)
     basedir, _ = File.split(bin)
     FileUtils.mkdir_p(basedir)
-    RakeFileUtils::sh(CmdLine.dynamic_lib_cmdline(mode, objs, bin)) do |ok, res|
+    RakeFileUtils::sh(CmdLine.dynamic_lib_cmdline(mode, objs, additional_params, bin)) do |ok, res|
       raise "Building dynamic library #{bin} failed" if !ok
     end
   end
@@ -281,7 +281,7 @@ rule ".dynlinkcmd" => ->(dc) {
   dynlib = FileMapper.map_linkcmd_to_dynamic_lib(dc)
   raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
   mode = FileMapper.get_mode_from_dc(dc)
-  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "<placeholder>")
+  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>")
   if File.exists?(dc) && File.read(dc).strip == cmd then
     []
   else
@@ -293,7 +293,7 @@ rule ".dynlinkcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_dc(task.name)
-  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "<placeholder>") << "\n"
+  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>") << "\n"
   output.close
 end
 
@@ -446,8 +446,15 @@ rule $DYNAMIC_LIB_EXTENSION => ->(library) {
   $LINK_BINARY_OBJS[library] = objs
   [FileMapper.map_dynamic_lib_to_linkcmd(library)] + objs
 } do |task|
+  libspec = nil
+  lib = FileMapper.strip_mode(task.name)[0..-$DYNAMIC_LIB_EXTENSION.length-1]
+  $AKRO_LIBS.each do |alib|
+    if alib.path == lib and not alib.static
+      libspec = alib
+    end
+  end
   mode = FileMapper.get_mode(task.name)
-  Builder.build_dynamic_library(mode, task.prerequisites[1..-1], task.name)
+  Builder.build_dynamic_library(mode, task.prerequisites[1..-1], libspec.additional_params, task.name)
 end
 
 task :clean do
