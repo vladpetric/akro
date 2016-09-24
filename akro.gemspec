@@ -1,8 +1,9 @@
 Gem::Specification.new do |spec|
   spec.name = 'akro'
-  spec.version = '0.0.0'
+  spec.email = 'vlad@impaler.org'
+  spec.version = '0.0.1'
   spec.license = 'MIT'
-  spec.summary = 'Akro build system - extends rake for effective C++ builds'
+  spec.summary = 'Akro build - an extreme C++ build system'
   spec.executables = ['akro']
   spec.files = ['bin/akro', 'lib/akro.rb', 'lib/akrobuild.rake']
   spec.authors = ['Vlad Petric']
