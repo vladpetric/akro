@@ -243,7 +243,7 @@ task "always"
 rule ".compcmd" => ->(dc) {
   mode = FileMapper.get_mode_from_dc(dc)
   cmd = CmdLine.compile_base_cmdline(mode)
-  if File.exists?(dc) && File.read(dc).strip == cmd then
+  if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
     "always"
@@ -262,7 +262,7 @@ rule ".linkcmd" => ->(dc) {
   raise "Internal error - linkcmd not mapped for #{binary}" if !$LINK_BINARY_OBJS.has_key?(binary)
   mode = FileMapper.get_mode_from_dc(dc)
   cmd = CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>")
-  if File.exists?(dc) && File.read(dc).strip == cmd then
+  if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
     "always"
@@ -282,7 +282,7 @@ rule ".dynlinkcmd" => ->(dc) {
   raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
   mode = FileMapper.get_mode_from_dc(dc)
   cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>")
-  if File.exists?(dc) && File.read(dc).strip == cmd then
+  if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
     "always"
@@ -302,7 +302,7 @@ rule ".stlinkcmd" => ->(dc) {
   raise "Internal error - linkcmd not mapped for #{stlib}" if !$LINK_BINARY_OBJS.has_key?(stlib)
   mode = FileMapper.get_mode_from_dc(dc)
   cmd = CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>")
-  if File.exists?(dc) && File.read(dc).strip == cmd then
+  if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
     "always"
