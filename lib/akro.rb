@@ -76,10 +76,15 @@ end
 AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps, :additional_params)
 $AKRO_LIBS = []
 
-def add_library(path: nil, sources: nil, static: true, recurse: true, capture_deps: true, additional_params: nil)
-  raise "Must specify path for library" if path.nil?
-  raise "Must specify source for library #{path}" if sources.nil?
-  $AKRO_LIBS << AkroLibrary.new(path, sources, static, recurse, capture_deps, additional_params)
+def add_static_library(path: nil, sources: nil, recurse: true, capture_deps: true, additional_params: nil)
+  raise "Must specify path for static library" if path.nil?
+  raise "Must specify source for static library #{path}" if sources.nil?
+  $AKRO_LIBS << AkroLibrary.new(path, sources, true, recurse, capture_deps, additional_params)
+end
+def add_dynamic_library(path: nil, sources: nil, recurse: true, capture_deps: true, additional_params: nil)
+  raise "Must specify path for dynamic library" if path.nil?
+  raise "Must specify source for dynamic library #{path}" if sources.nil?
+  $AKRO_LIBS << AkroLibrary.new(path, sources, false, recurse, capture_deps, additional_params)
 end
 
 def add_tests(*tests)

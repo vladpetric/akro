@@ -354,7 +354,6 @@ $LINK_BINARY_OBJS = Hash.new
 rule ".exe" => ->(binary){
   obj = binary.gsub(/\.exe$/, $OBJ_EXTENSION)
   mode = FileMapper.get_mode(binary)
-  invoke_all_capturing_libs(mode)
   cpp = FileMapper.map_obj_to_cpp(obj)
   raise "No proper #{$CPP_EXTENSIONS.join(',')} file found for #{binary}" if cpp.nil?
   obj_list = []
@@ -463,6 +462,7 @@ task :clean do
 end
 
 $MODES.each do |mode|
+  invoke_all_capturing_libs(mode)
   task mode
   task "test_#{mode}"
   $AKRO_BINARIES.each do |bin|
@@ -479,9 +479,10 @@ $MODES.each do |mode|
       end
     task "#{test.name}_test_#{mode}" => test_dep do |task|
       puts "Running test #{task.name}"
-      base = (if !test.script.nil? then "MODE=#{mode} #{test.script}" else "#{mode}/#{test.binary}" end)
+      base = (if !test.script.nil? then "#{test.script}" else "#{mode}/#{test.binary}" end)
       params = (if !test.cmdline.nil? then " " + test.cmdline else "" end)
-      RakeFileUtils::sh(base + params) do |ok, res|
+      new_ld_path = if ENV.has_key?("LD_LIBRARY_PATH") then "#{mode}/:#{ENV['LD_LIBRARY_PATH']}" else "#{mode}/" end
+      system({"MODE" => mode, "LD_LIBRARY_PATH" => new_ld_path}, base + params) do |ok, res|
         raise "Test #{task.name} failed" if !ok
       end
       puts "Test #{task.name} passed"
