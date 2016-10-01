@@ -48,6 +48,7 @@ $STATIC_LIB_EXTENSION = ".a"
 $DYNAMIC_LIB_EXTENSION = ".so"
 
 $LIB_CAPTURE_MAP = Hash.new
+$CAPTURING_LIBS = Set.new
 
 AkroTest = Struct.new("AkroTest", :name, :script, :binary, :cmdline)
 $AKRO_TESTS = []

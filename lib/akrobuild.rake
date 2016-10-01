@@ -341,14 +341,6 @@ def libname(mode, lib)
   "#{mode}/#{lib.path}#{if lib.static then $STATIC_LIB_EXTENSION else $DYNAMIC_LIB_EXTENSION end}"
 end
 
-def invoke_all_capturing_libs(mode)
-  $AKRO_LIBS.each do |lib|
-    if lib.capture_deps 
-      Rake::Task[libname(mode, lib)].invoke
-    end
-  end
-end
-
 $LINK_BINARY_OBJS = Hash.new
 
 rule ".exe" => ->(binary){
@@ -356,6 +348,7 @@ rule ".exe" => ->(binary){
   mode = FileMapper.get_mode(binary)
   cpp = FileMapper.map_obj_to_cpp(obj)
   raise "No proper #{$CPP_EXTENSIONS.join(',')} file found for #{binary}" if cpp.nil?
+  Rake::Task["#{mode}/all_capturing_libs"].invoke
   obj_list = []
   # Two passes through the object list - the capturing libraries will
   # be inserted on the position of the *last* object in the list
@@ -382,6 +375,13 @@ rule ".exe" => ->(binary){
   Builder.link_binary(task.prerequisites[1..-1], task.name)
 end
 
+$MODES.each do |mode|
+  rule /^#{mode}\/all_capturing_libs$/ => $AKRO_LIBS.keep_if{|l| l.capture_deps}.collect{|l| libname(mode, l)} do |task|
+    puts "All capturing libs task #{task.name}: #{task.prerequisites.join(", ")}" 
+    FileUtils::touch(task.name)
+  end
+end
+
 rule $STATIC_LIB_EXTENSION => ->(library) {
   mode = FileMapper.get_mode(library)
   srcs = []
@@ -395,19 +395,21 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
     end
   end
   raise "Library #{library} not found!" if libspec.nil?
+  Rake::Task["#{mode}/all_capturing_libs"].invoke if !libspec.capture_deps
   srcs.flatten!
   if libspec.recurse
     objs = Builder.depcache_object_collect(mode, srcs)
   else
     objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
   end
-  if libspec.capture_deps
+  if libspec.capture_deps && !$CAPTURING_LIBS.include?(library)
     objs.each do |obj|
       if $LIB_CAPTURE_MAP.has_key?(obj)
         raise "Object #{obj} has dependency captures for multiple libraries - #{$LIB_CAPTURE_MAP[obj]} and #{library}"
       end
       $LIB_CAPTURE_MAP[obj] = library
     end
+    $CAPTURING_LIBS << library
   end
   $LINK_BINARY_OBJS[library] = objs
   [FileMapper.map_static_lib_to_linkcmd(library)] + objs
@@ -428,19 +430,22 @@ rule $DYNAMIC_LIB_EXTENSION => ->(library) {
     end
   end
   raise "Library #{library} not found!" if libspec.nil?
+  Rake::Task["#{mode}/all_capturing_libs"].invoke if !libspec.capture_deps
+
   srcs.flatten!
   if libspec.recurse
     objs = Builder.depcache_object_collect(mode, srcs)
   else
     objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
   end
-  if libspec.capture_deps
+  if libspec.capture_deps && !$CAPTURING_LIBS.include?(library)
     objs.each do |obj|
       if $LIB_CAPTURE_MAP.has_key?(obj)
         raise "Object #{obj} has dependency captures for multiple libraries - #{$LIB_CAPTURE_MAP[obj]} and #{library}"
       end
       $LIB_CAPTURE_MAP[obj] = library
     end
+    $CAPTURING_LIBS << library
   end
   $LINK_BINARY_OBJS[library] = objs
   [FileMapper.map_dynamic_lib_to_linkcmd(library)] + objs
@@ -462,7 +467,6 @@ task :clean do
 end
 
 $MODES.each do |mode|
-  invoke_all_capturing_libs(mode)
   task mode
   task "test_#{mode}"
   $AKRO_BINARIES.each do |bin|

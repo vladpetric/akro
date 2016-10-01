@@ -5,3 +5,7 @@ https://github.com/petver29/autobuild
 
 Although it borrows many ideas from autobuild, it is a from-scratch,
 clean-room implementation.
+
+An introduction to Akro:
+
+http://drpetric.blogspot.com/2016/09/akro-build-extreme-c-build-system.html
