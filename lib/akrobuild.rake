@@ -378,6 +378,7 @@ end
 $MODES.each do |mode|
   rule /^#{mode}\/all_capturing_libs$/ => $AKRO_LIBS.keep_if{|l| l.capture_deps}.collect{|l| libname(mode, l)} do |task|
     puts "All capturing libs task #{task.name}: #{task.prerequisites.join(", ")}" 
+    FileUtils.mkdir_p(mode)
     FileUtils::touch(task.name)
   end
 end
