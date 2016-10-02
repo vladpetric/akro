@@ -156,3 +156,7 @@ def silent_exec(command, verbose: false, lines_if_error: 200, env: {})
   end
   return true
 end
+
+def akro_multitask
+  Rake.application.options.enable_multitask = true
+end
