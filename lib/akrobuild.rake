@@ -377,7 +377,6 @@ end
 
 $MODES.each do |mode|
   rule /^#{mode}\/all_capturing_libs$/ => $AKRO_LIBS.keep_if{|l| l.capture_deps}.collect{|l| libname(mode, l)} do |task|
-    puts "All capturing libs task #{task.name}: #{task.prerequisites.join(", ")}" 
     FileUtils.mkdir_p(mode)
     FileUtils::touch(task.name)
   end
@@ -487,9 +486,7 @@ $MODES.each do |mode|
       base = (if !test.script.nil? then "#{test.script}" else "#{mode}/#{test.binary}" end)
       params = (if !test.cmdline.nil? then " " + test.cmdline else "" end)
       new_ld_path = if ENV.has_key?("LD_LIBRARY_PATH") then "#{mode}/:#{ENV['LD_LIBRARY_PATH']}" else "#{mode}/" end
-      system({"MODE" => mode, "LD_LIBRARY_PATH" => new_ld_path}, base + params) do |ok, res|
-        raise "Test #{task.name} failed" if !ok
-      end
+      raise "Test #{task.name} failed" if !silent_exec(base + params, verbose: $VERBOSE_BUILD, env: {"MODE" => mode, "LD_LIBRARY_PATH" => new_ld_path})
       puts "Test #{task.name} passed"
     end
     Rake::Task["test_#{mode}"].enhance(["#{test.name}_test_#{mode}"])

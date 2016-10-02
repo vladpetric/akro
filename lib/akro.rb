@@ -19,6 +19,7 @@
 # IN THE SOFTWARE.
 
 require 'rake'
+require 'tempfile'
 
 $VERBOSE_BUILD = false
 
@@ -133,4 +134,25 @@ module CmdLine
     soname = if bin.include?("/") then FileMapper.strip_mode(bin) else bin end
     "#{$LINKER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{soname} -o #{bin} #{objs.join(' ')}#{extra_params}"
   end
+end
+
+# Execute command, redirect output to temporary file, and print if error
+def silent_exec(command, verbose: false, lines_if_error: 200, env: {})
+  Tempfile.open('testout') do |output|
+    puts command if verbose
+    if !system(env, command, [:out, :err] => output)
+      output.close(unlink_now=false)
+      if env.empty?()
+        puts "Command <#{command}> failed:"
+      else
+        envstr = env.map{|k,v| "#{k}=#{v}"}.join(' ')
+        puts "Command <#{envstr} #{command}> failed:"
+      end
+      lines = IO.readlines(output.path)
+      lines = lines[-lines_if_error..-1] if lines.size() > lines_if_error
+      puts lines
+      return false
+    end
+  end
+  return true
 end
