@@ -376,7 +376,7 @@ rule ".exe" => ->(binary){
 end
 
 $MODES.each do |mode|
-  rule /^#{mode}\/all_capturing_libs$/ => $AKRO_LIBS.keep_if{|l| l.capture_deps}.collect{|l| libname(mode, l)} do |task|
+  rule /^#{mode}\/all_capturing_libs$/ => $AKRO_LIBS.select{|l| l.capture_deps}.collect{|l| libname(mode, l)} do |task|
     FileUtils.mkdir_p(mode)
     FileUtils::touch(task.name)
   end
