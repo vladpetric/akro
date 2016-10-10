@@ -42,11 +42,20 @@ $MODE_LINK_FLAGS = nil
 # $ADDITIONAL_LINK_FLAGS is for third party libraries and objects
 $ADDITIONAL_LINK_FLAGS = ""
 
-$HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
-$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
+if Gem.windows?
+  $HEADER_EXTENSIONS = [".H", ".hpp"]
+  $CPP_EXTENSIONS = [".C", ".cc", ".cpp", ".cxx", ".c++"]
+else
+  $HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
+  $CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
+end
 $OBJ_EXTENSION = ".o"
 $STATIC_LIB_EXTENSION = ".a"
-$DYNAMIC_LIB_EXTENSION = ".so"
+if Gem.windows?
+  $DYNAMIC_LIB_EXTENSION = ".dll"
+else
+  $DYNAMIC_LIB_EXTENSION = ".so"
+end
 
 $LIB_CAPTURE_MAP = Hash.new
 $CAPTURING_LIBS = Set.new

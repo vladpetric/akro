@@ -162,12 +162,15 @@ module Builder
       puts cmdline if $VERBOSE_BUILD
       deps = `#{cmdline}`
       raise "Dependency determination failed for #{src}" if $?.to_i != 0
-      # NOTE(vlad): spaces within included filenames are not supported
-      # Get rid of \ at the end of lines, and also of the newline
+      # Replace quoted spaces with placeholders
+      deps.gsub!(/\\ /, '<*%#?>') # a string that never exists in filenames
+      # Get rid of endlines completeley
       deps.gsub!(/\\\n/, '')
       # also get rid of <filename>: at the beginning
+      # split by spaces
       deps[/^[^:]*:(.*)$/, 1].split(' ').each do |line|
         # Output either a relative path if the file is local, or the original line.
+        line.gsub!('<*%#?>', ' ')
         output << (Util.make_relative_path(line.strip) || line) << "\n"
       end
       output.close
