@@ -120,7 +120,11 @@ end
 # Module with overrideable command line functions
 module CmdLine
   def CmdLine.compile_base_cmdline(mode, src)
-    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}"
+    per_file_flags = $PER_FILE_COMPILE_FLAGS.call(mode, src)
+    if per_file_flags.size() > 0
+      per_file_flags = " " + per_file_flags
+    end
+    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}#{per_file_flags}"
   end
   def CmdLine.dependency_cmdline(mode, src)
     "#{CmdLine.compile_base_cmdline(mode, src)} -M #{src}"
