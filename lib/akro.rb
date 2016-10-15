@@ -42,7 +42,11 @@ $MODE_LINK_FLAGS = nil
 # $ADDITIONAL_LINK_FLAGS is for third party libraries and objects
 $ADDITIONAL_LINK_FLAGS = ""
 
-if Gem.windows?
+def windows?
+  (RUBY_PLATFORM =~ /cygwin|mswin|mingw|bccwin|wince|emx/) != nil
+end
+
+if windows?
   $HEADER_EXTENSIONS = [".H", ".hpp"]
   $CPP_EXTENSIONS = [".C", ".cc", ".cpp", ".cxx", ".c++"]
 else
@@ -51,7 +55,7 @@ else
 end
 $OBJ_EXTENSION = ".o"
 $STATIC_LIB_EXTENSION = ".a"
-if Gem.windows?
+if windows?
   $DYNAMIC_LIB_EXTENSION = ".dll"
 else
   $DYNAMIC_LIB_EXTENSION = ".so"
@@ -59,6 +63,8 @@ end
 
 $LIB_CAPTURE_MAP = Hash.new
 $CAPTURING_LIBS = Set.new
+
+$PER_FILE_COMPILE_FLAGS = lambda {|mode, src| ""}
 
 AkroTest = Struct.new("AkroTest", :name, :script, :binary, :cmdline)
 $AKRO_TESTS = []
@@ -113,14 +119,14 @@ end
 
 # Module with overrideable command line functions
 module CmdLine
-  def CmdLine.compile_base_cmdline(mode)
+  def CmdLine.compile_base_cmdline(mode, src)
     "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}"
   end
   def CmdLine.dependency_cmdline(mode, src)
-    "#{CmdLine.compile_base_cmdline(mode)} -M #{src}"
+    "#{CmdLine.compile_base_cmdline(mode, src)} -M #{src}"
   end
   def CmdLine.compile_cmdline(mode, src, obj)
-    "#{CmdLine.compile_base_cmdline(mode)} -c #{src} -o #{obj}"
+    "#{CmdLine.compile_base_cmdline(mode, src)} -c #{src} -o #{obj}"
   end
   def CmdLine.link_cmdline(mode, objs, bin)
     "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS} -o #{bin}"

@@ -48,7 +48,7 @@ module FileMapper
     raise "Unknown mode #{mode} for #{path}" if !$MODES.include?(mode)
     mode
   end
-  def FileMapper.get_mode_from_dc(path)
+  def FileMapper.get_mode_from_akpath(path)
     rel_path = Util.make_relative_path(path)
     raise "Path #{path} does not belong to #{Dir.pwd}" if rel_path.nil?
     mode = rel_path[/^\.akro\/([^\/]*)/, 1]
@@ -106,6 +106,15 @@ module FileMapper
     raise "#{path} is not a .depcache file" if !path.end_with?('.depcache') || !path.start_with?('.akro')
     path.gsub(/\.depcache$/, ".compcmd" )
   end
+  def FileMapper.map_compcmd_to_cpp(path)
+    raise "#{path} is not a .compcmd file" if !path.end_with?('.compcmd') || !path.start_with?('.akro')
+    file = path[/^\.akro\/(.*)\.compcmd$/, 1]
+    file = FileMapper.strip_mode(file)
+    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}
+    raise "Multiple sources for base name #{file}: #{srcs.join(' ')}" if srcs.length > 1
+    raise "No sources for base name #{file}" if srcs.length == 0
+    srcs[0]
+  end
   def FileMapper.map_exe_to_linkcmd(path)
     ".akro/#{path.gsub(/\.exe$/, ".linkcmd" )}"
   end
@@ -151,7 +160,7 @@ end
 module Builder
   def Builder.create_depcache(src, dc)
     success = false
-    mode = FileMapper.get_mode_from_dc(dc)
+    mode = FileMapper.get_mode_from_akpath(dc)
     basedir, _ = File.split(dc)
     FileUtils.mkdir_p(basedir)
     output = File.open(dc, "w")
@@ -243,10 +252,11 @@ end
 #Phony task that forces anything depending on it to run 
 task "always"
   
-rule ".compcmd" => ->(dc) {
-  mode = FileMapper.get_mode_from_dc(dc)
-  cmd = CmdLine.compile_base_cmdline(mode)
-  if File.exists?(dc) && File.read(dc).strip == cmd.strip then
+rule ".compcmd" => ->(compcmd) {
+  mode = FileMapper.get_mode_from_akpath(compcmd)
+  src = FileMapper.map_compcmd_to_cpp(compcmd)
+  cmd = CmdLine.compile_base_cmdline(mode, src)
+  if File.exists?(compcmd) && File.read(compcmd).strip == cmd.strip then
     []
   else
     "always"
@@ -255,15 +265,16 @@ rule ".compcmd" => ->(dc) {
   basedir, _ = File.split(task.name)
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
-  mode = FileMapper.get_mode_from_dc(task.name)
-  output << CmdLine.compile_base_cmdline(mode) << "\n"
+  mode = FileMapper.get_mode_from_akpath(task.name)
+  src = FileMapper.map_compcmd_to_cpp(task.name)
+  output << CmdLine.compile_base_cmdline(mode, src) << "\n"
   output.close
 end
 
 rule ".linkcmd" => ->(dc) {
   binary = FileMapper.map_linkcmd_to_exe(dc)
   raise "Internal error - linkcmd not mapped for #{binary}" if !$LINK_BINARY_OBJS.has_key?(binary)
-  mode = FileMapper.get_mode_from_dc(dc)
+  mode = FileMapper.get_mode_from_akpath(dc)
   cmd = CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>")
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
@@ -275,7 +286,7 @@ rule ".linkcmd" => ->(dc) {
   binary = FileMapper.map_linkcmd_to_exe(task.name)
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
-  mode = FileMapper.get_mode_from_dc(task.name)
+  mode = FileMapper.get_mode_from_akpath(task.name)
   output << CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>") << "\n"
   output.close
 end
@@ -283,7 +294,7 @@ end
 rule ".dynlinkcmd" => ->(dc) {
   dynlib = FileMapper.map_linkcmd_to_dynamic_lib(dc)
   raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
-  mode = FileMapper.get_mode_from_dc(dc)
+  mode = FileMapper.get_mode_from_akpath(dc)
   cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>")
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
@@ -295,7 +306,7 @@ rule ".dynlinkcmd" => ->(dc) {
   dynlib = FileMapper.map_linkcmd_to_dynamic_lib(task.name)
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
-  mode = FileMapper.get_mode_from_dc(task.name)
+  mode = FileMapper.get_mode_from_akpath(task.name)
   output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>") << "\n"
   output.close
 end
@@ -303,7 +314,7 @@ end
 rule ".stlinkcmd" => ->(dc) {
   stlib = FileMapper.map_linkcmd_to_static_lib(dc)
   raise "Internal error - linkcmd not mapped for #{stlib}" if !$LINK_BINARY_OBJS.has_key?(stlib)
-  mode = FileMapper.get_mode_from_dc(dc)
+  mode = FileMapper.get_mode_from_akpath(dc)
   cmd = CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>")
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
@@ -315,7 +326,7 @@ rule ".stlinkcmd" => ->(dc) {
   stlib = FileMapper.map_linkcmd_to_static_lib(task.name)
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
-  mode = FileMapper.get_mode_from_dc(task.name)
+  mode = FileMapper.get_mode_from_akpath(task.name)
   output << CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>") << "\n"
   output.close
 end
