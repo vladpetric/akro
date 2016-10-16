@@ -487,6 +487,9 @@ $MODES.each do |mode|
     raise "Binary cannot start with mode #{bin}" if bin.start_with?(mode + "/")
     Rake::Task[mode].enhance(["#{mode}/#{bin}"])
   end
+  # Build all non-capturing libs by default.
+  # Capturing libs are automatically invoked by binaries anyway.
+  Rake::Task[mode].enhance($AKRO_LIBS.select{|l| !l.capture_deps}.map{|l| libname(mode, l)})
   $AKRO_TESTS.each do |test|
     test_dep = 
       if !test.binary.nil?
