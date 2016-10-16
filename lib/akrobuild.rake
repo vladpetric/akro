@@ -275,7 +275,7 @@ rule ".linkcmd" => ->(dc) {
   binary = FileMapper.map_linkcmd_to_exe(dc)
   raise "Internal error - linkcmd not mapped for #{binary}" if !$LINK_BINARY_OBJS.has_key?(binary)
   mode = FileMapper.get_mode_from_akpath(dc)
-  cmd = CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>")
+  cmd = CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], binary)
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
@@ -287,7 +287,7 @@ rule ".linkcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_akpath(task.name)
-  output << CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], "<placeholder>") << "\n"
+  output << CmdLine.link_cmdline(mode, $LINK_BINARY_OBJS[binary], binary) << "\n"
   output.close
 end
 
@@ -295,7 +295,7 @@ rule ".dynlinkcmd" => ->(dc) {
   dynlib = FileMapper.map_linkcmd_to_dynamic_lib(dc)
   raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
   mode = FileMapper.get_mode_from_akpath(dc)
-  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>")
+  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", dynlib)
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
@@ -307,7 +307,7 @@ rule ".dynlinkcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_akpath(task.name)
-  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", "<placeholder>") << "\n"
+  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", dynlib) << "\n"
   output.close
 end
 
@@ -315,7 +315,7 @@ rule ".stlinkcmd" => ->(dc) {
   stlib = FileMapper.map_linkcmd_to_static_lib(dc)
   raise "Internal error - linkcmd not mapped for #{stlib}" if !$LINK_BINARY_OBJS.has_key?(stlib)
   mode = FileMapper.get_mode_from_akpath(dc)
-  cmd = CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>")
+  cmd = CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], stlib)
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
@@ -327,7 +327,7 @@ rule ".stlinkcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_akpath(task.name)
-  output << CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], "<placeholder>") << "\n"
+  output << CmdLine.static_lib_cmdline($LINK_BINARY_OBJS[stlib], stlib) << "\n"
   output.close
 end
 

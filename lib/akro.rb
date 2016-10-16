@@ -80,14 +80,20 @@ def add_test(name: nil, script: nil, binary: nil, cmdline: nil)
 end
 
 $AKRO_BINARIES = []
-def add_binary(path)
-  $AKRO_BINARIES << path.to_str()
-end
+$BIN_EXTRA_FLAGS = Hash.new
 
 def add_binaries(*paths)
   paths.each do |path|
     $AKRO_BINARIES << path.to_str()
   end
+end
+
+def add_binary(path: nil, additional_link_params: nil)
+  raise "Must specify path for binary" if path.nil?
+  if !additional_link_params.nil? && additional_link_params != ""
+    $BIN_EXTRA_FLAGS[path] = additional_link_params
+  end
+  $AKRO_BINARIES << path.to_str()
 end
 
 AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps, :additional_params)
@@ -133,7 +139,9 @@ module CmdLine
     "#{CmdLine.compile_base_cmdline(mode, src)} -c #{src} -o #{obj}"
   end
   def CmdLine.link_cmdline(mode, objs, bin)
-    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS} -o #{bin}"
+    nomodebin = FileMapper.strip_mode(bin)
+    per_file_flags = if $BIN_EXTRA_FLAGS.has_key?(nomodebin) then " " + $BIN_EXTRA_FLAGS[nomodebin] else "" end
+    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS}#{per_file_flags} -o #{bin}"
   end
   def CmdLine.static_lib_cmdline(objs, bin)
     "#{$AR} rcs #{bin} #{objs.join(' ')}"
