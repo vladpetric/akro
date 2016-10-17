@@ -74,8 +74,9 @@ module FileMapper
   def FileMapper.map_obj_to_cpp(path)
     raise "#{path} is not a #{$OBJ_EXTENSION} file" if !path.end_with?($OBJ_EXTENSION)
     file = FileMapper.strip_mode(path)
-    file = file[0..-$OBJ_EXTENSION.length-1]   
-    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}
+    file = file[0..-$OBJ_EXTENSION.length-1]
+    # Under windows, make_relative_path also canonicalizes the path.
+    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}.map{|fname| Util.make_relative_path(fname)}.uniq
     raise "Multiple sources for base name #{file}: #{srcs.join(' ')}" if srcs.length > 1
     srcs.length == 0? nil : srcs[0]
   end
@@ -139,8 +140,6 @@ module FileMapper
     rel_path = Util.make_relative_path(path)
     # file is not local
     return nil if rel_path.nil?
-    #$HEADER_EXTENSIONS.select{|ext| rel_path.end_with?(ext)}.each do |ext|
-    #end
     srcs = $HEADER_EXTENSIONS.select{|ext| rel_path.end_with?(ext)}.collect{ |ext|
       base_path = rel_path[0..-ext.length-1]
       $CPP_EXTENSIONS.map{|cppext| base_path + cppext}.select{|file| File.exist?(file)}

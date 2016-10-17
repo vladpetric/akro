@@ -46,13 +46,8 @@ def windows?
   (RUBY_PLATFORM =~ /cygwin|mswin|mingw|bccwin|wince|emx/) != nil
 end
 
-if windows?
-  $HEADER_EXTENSIONS = [".H", ".hpp"]
-  $CPP_EXTENSIONS = [".C", ".cc", ".cpp", ".cxx", ".c++"]
-else
-  $HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
-  $CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
-end
+$HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
+$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
 $OBJ_EXTENSION = ".o"
 $STATIC_LIB_EXTENSION = ".a"
 if windows?
