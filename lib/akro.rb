@@ -136,7 +136,7 @@ module CmdLine
   def CmdLine.link_cmdline(mode, objs, bin)
     nomodebin = FileMapper.strip_mode(bin)
     per_file_flags = if $BIN_EXTRA_FLAGS.has_key?(nomodebin) then " " + $BIN_EXTRA_FLAGS[nomodebin] else "" end
-    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{$MODE_LINK_FLAGS[mode]} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS}#{per_file_flags} -o #{bin}"
+    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS}#{per_file_flags} #{$MODE_LINK_FLAGS[mode]} -o #{bin}"
   end
   def CmdLine.static_lib_cmdline(objs, bin)
     "#{$AR} rcs #{bin} #{objs.join(' ')}"
