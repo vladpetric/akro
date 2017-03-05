@@ -78,17 +78,29 @@ $AKRO_BINARIES = []
 $BIN_EXTRA_FLAGS = Hash.new
 
 def add_binaries(*paths)
+  puts("add_binaries call is obsolete. Use add_binary with array instead")
   paths.each do |path|
     $AKRO_BINARIES << path.to_str()
   end
 end
 
-def add_binary(path: nil, additional_link_params: nil)
+def add_binary_internal(path: nil, additional_link_params: nil)
   raise "Must specify path for binary" if path.nil?
   if !additional_link_params.nil? && additional_link_params != ""
     $BIN_EXTRA_FLAGS[path] = additional_link_params
   end
   $AKRO_BINARIES << path.to_str()
+end
+
+def add_binary(path: nil, additional_link_params: nil)
+  raise "No path defined" if path.nil?
+  files = path;
+  if !files.kind_of?(Array)
+    files = [path]
+  end
+  files.each do |file|
+    add_binary_internal(path: file, additional_link_params: additional_link_params)
+  end
 end
 
 AkroLibrary = Struct.new("AkroLibrary", :path, :sources, :static, :recurse, :capture_deps, :additional_params)
