@@ -426,7 +426,6 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
     $CAPTURING_LIBS << library
   end
   $LINK_BINARY_OBJS[library] = objs
-  $LINK_LIBRARY_EXTRAFLAGS[library] = libspec.additional_params
   [FileMapper.map_static_lib_to_linkcmd(library)] + objs
 } do |task|
   Builder.archive_static_library(task.prerequisites[1..-1], task.name)
