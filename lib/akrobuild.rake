@@ -333,7 +333,7 @@ end
 
 rule ".depcache" => ->(dc){
   [FileMapper.map_dc_to_compcmd(dc), FileMapper.map_dc_to_cpp(dc)] + 
-  (File.exist?(dc) ? File.readlines(dc).map{|line| line.strip}: [])
+  (File.exist?(dc) ? File.readlines(dc).map{|line| line.strip}.map{|file| File.exist?(file) ? file : "always"}: [])
 } do |task|
   src = FileMapper.map_dc_to_cpp(task.name)
   Builder.create_depcache(src, task.name)
