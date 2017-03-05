@@ -294,7 +294,7 @@ rule ".dynlinkcmd" => ->(dc) {
   dynlib = FileMapper.map_linkcmd_to_dynamic_lib(dc)
   raise "Internal error - linkcmd not mapped for #{dynlib}" if !$LINK_BINARY_OBJS.has_key?(dynlib)
   mode = FileMapper.get_mode_from_akpath(dc)
-  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", dynlib)
+  cmd = CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], $LINK_LIBRARY_EXTRAFLAGS[dynlib], dynlib)
   if File.exists?(dc) && File.read(dc).strip == cmd.strip then
     []
   else
@@ -306,7 +306,7 @@ rule ".dynlinkcmd" => ->(dc) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_akpath(task.name)
-  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], "", dynlib) << "\n"
+  output << CmdLine.dynamic_lib_cmdline(mode, $LINK_BINARY_OBJS[dynlib], $LINK_LIBRARY_EXTRAFLAGS[dynlib], dynlib) << "\n"
   output.close
 end
 
@@ -355,6 +355,7 @@ def libname(mode, lib)
 end
 
 $LINK_BINARY_OBJS = Hash.new
+$LINK_LIBRARY_EXTRAFLAGS = Hash.new
 
 rule ".exe" => ->(binary){
   obj = binary.gsub(/\.exe$/, $OBJ_EXTENSION)
@@ -425,6 +426,7 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
     $CAPTURING_LIBS << library
   end
   $LINK_BINARY_OBJS[library] = objs
+  $LINK_LIBRARY_EXTRAFLAGS[library] = libspec.additional_params
   [FileMapper.map_static_lib_to_linkcmd(library)] + objs
 } do |task|
   Builder.archive_static_library(task.prerequisites[1..-1], task.name)
@@ -461,6 +463,7 @@ rule $DYNAMIC_LIB_EXTENSION => ->(library) {
     $CAPTURING_LIBS << library
   end
   $LINK_BINARY_OBJS[library] = objs
+  $LINK_LIBRARY_EXTRAFLAGS[library] = libspec.additional_params
   [FileMapper.map_dynamic_lib_to_linkcmd(library)] + objs
 } do |task|
   libspec = nil
