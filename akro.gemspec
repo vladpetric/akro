@@ -1,7 +1,7 @@
 Gem::Specification.new do |spec|
   spec.name = 'akro'
   spec.email = 'vlad@impaler.org'
-  spec.version = '0.0.7'
+  spec.version = '0.0.8'
   spec.license = 'MIT'
   spec.summary = 'Akro build - an extreme C++ build system'
   spec.executables = ['akro']
