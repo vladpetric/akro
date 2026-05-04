@@ -19,6 +19,7 @@
 # IN THE SOFTWARE.
 
 require 'rake'
+require 'set'
 require 'tempfile'
 
 $VERBOSE_BUILD = false
