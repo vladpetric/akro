@@ -26,6 +26,7 @@ jobs:
         run: |
           echo "AKRO_GEM_HOME=${RUNNER_TEMP}/akro-gem-home" >> "${GITHUB_ENV}"
           echo "AKRO_BIN_DIR=${RUNNER_TEMP}/akro-bin" >> "${GITHUB_ENV}"
+          echo "${RUNNER_TEMP}/akro-bin" >> "${GITHUB_PATH}"
 
       - name: Install gem into temporary directory
         env:
@@ -50,7 +51,6 @@ jobs:
         env:
           GEM_HOME: ${{ env.AKRO_GEM_HOME }}
           GEM_PATH: ${{ env.AKRO_GEM_HOME }}
-          PATH: ${{ env.AKRO_BIN_DIR }}:${{ env.PATH }}
         run: akro clean debug
 
       - name: Run synthetic C++ sample
