@@ -1,1 +1,3 @@
 akro-*.gem
+synthetic-cpp-build/.akro/
+synthetic-cpp-build/debug/

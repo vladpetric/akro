@@ -1,0 +1,58 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Build Akro gem from scratch
+        run: |
+          rm -f akro-*.gem
+          gem build akro.gemspec
+
+      - name: Prepare temporary gem home
+        run: |
+          echo "AKRO_GEM_HOME=${RUNNER_TEMP}/akro-gem-home" >> "${GITHUB_ENV}"
+          echo "AKRO_BIN_DIR=${RUNNER_TEMP}/akro-bin" >> "${GITHUB_ENV}"
+
+      - name: Install gem into temporary directory
+        env:
+          GEM_HOME: ${{ env.AKRO_GEM_HOME }}
+          GEM_PATH: ${{ env.AKRO_GEM_HOME }}
+        run: |
+          mkdir -p "${AKRO_GEM_HOME}" "${AKRO_BIN_DIR}"
+          gem install \
+            --no-document \
+            --install-dir "${AKRO_GEM_HOME}" \
+            --bindir "${AKRO_BIN_DIR}" \
+            rake -v ">= 12.3.3"
+          gem install --local \
+            --install-dir "${AKRO_GEM_HOME}" \
+            --bindir "${AKRO_BIN_DIR}" \
+            --no-document \
+            --ignore-dependencies \
+            ./akro-*.gem
+
+      - name: Build synthetic C++ sample
+        working-directory: synthetic-cpp-build
+        env:
+          GEM_HOME: ${{ env.AKRO_GEM_HOME }}
+          GEM_PATH: ${{ env.AKRO_GEM_HOME }}
+          PATH: ${{ env.AKRO_BIN_DIR }}:${{ env.PATH }}
+        run: akro clean debug
+
+      - name: Run synthetic C++ sample
+        working-directory: synthetic-cpp-build
+        run: ./debug/synthetic_main.exe
