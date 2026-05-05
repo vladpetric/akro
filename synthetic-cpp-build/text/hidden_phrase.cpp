@@ -16,7 +16,7 @@ std::string hidden_phrase() {
 
 std::string hidden_suffix() {
   return std::string(slowmeta::generated_phrase_view<18>().substr(0, 6)) + "-" +
-         std::to_string(static_cast<int>(math::kPi1048576 * 1000.0L) % 1000);
+         std::to_string(static_cast<int>(math::kPi524288 * 1000.0L) % 1000);
 }
 
 }  // namespace synth::text
