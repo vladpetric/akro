@@ -18,12 +18,11 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
-$MODES = $MODE_COMPILE_FLAGS.keys
+$MODES = ($MODE_CFLAGS.keys + $MODE_CXXFLAGS.keys).uniq
 $COMPILER_PREFIX = $COMPILER_PREFIX.nil? ? "" : $COMPILER_PREFIX + " "
 $LINKER_PREFIX = $LINKER_PREFIX.nil? ? $COMPILER_PREFIX : $LINKER_PREFIX + " "
-$LINKER = $LINKER.nil? ? $COMPILER : $LINKER
-$LINK_FLAGS = $LINK_FLAGS.nil? ? $COMPILE_FLAGS : $LINK_FLAGS
-$MODE_LINK_FLAGS = $MODE_LINK_FLAGS.nil? ? $MODE_COMPILE_FLAGS : $MODE_LINK_FLAGS 
+$LDFLAGS = $LINK_FLAGS if defined?($LINK_FLAGS) && $LDFLAGS.nil?
+$MODE_LDFLAGS = $MODE_LINK_FLAGS if defined?($MODE_LINK_FLAGS) && $MODE_LDFLAGS.nil?
 
 module Util
   def Util.make_relative_path(path)
@@ -39,6 +38,19 @@ module Util
 end
 
 module FileMapper
+  def FileMapper.source_extensions
+    $C_EXTENSIONS + $CXX_EXTENSIONS
+  end
+  def FileMapper.find_sources_for_base(file, make_relative: false)
+    srcs = FileMapper.source_extensions
+      .map{|ext| file + ext}
+      .select{|fname| File.exist?(fname)}
+    srcs = srcs.map{|fname| Util.make_relative_path(fname)}.uniq if make_relative
+    srcs.uniq
+  end
+  def FileMapper.cxx_source?(path)
+    $CXX_EXTENSIONS.any? {|ext| path.end_with?(ext)}
+  end
   # Extract build mode from path.
   # E.g., debug/a/b/c.o returns debug.
   def FileMapper.get_mode(path)
@@ -69,36 +81,36 @@ module FileMapper
     raise "#{path} is not a #{$OBJ_EXTENSION} file" if !path.end_with?($OBJ_EXTENSION)
     ".akro/#{path[0..-$OBJ_EXTENSION.length-1]}.depcache"
   end
-  # Maps object file to its corresponding cpp file, if it exists.
-  # E.g., release/a/b/c.o maps to a/b/c{.cpp,.cc,.cxx,.c++}
-  def FileMapper.map_obj_to_cpp(path)
+  # Maps object file to its corresponding source file, if it exists.
+  # E.g., release/a/b/c.o maps to a/b/c{.c,.cpp,.cc,.cxx,.c++}
+  def FileMapper.map_obj_to_src(path)
     raise "#{path} is not a #{$OBJ_EXTENSION} file" if !path.end_with?($OBJ_EXTENSION)
     file = FileMapper.strip_mode(path)
     file = file[0..-$OBJ_EXTENSION.length-1]
     # Under windows, make_relative_path also canonicalizes the path.
-    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}.map{|fname| Util.make_relative_path(fname)}.uniq
+    srcs = FileMapper.find_sources_for_base(file, make_relative: true)
     raise "Multiple sources for base name #{file}: #{srcs.join(' ')}" if srcs.length > 1
     srcs.length == 0? nil : srcs[0]
   end
-  def FileMapper.map_cpp_to_dc(mode, path)
-    $CPP_EXTENSIONS.map do |ext|
+  def FileMapper.map_src_to_dc(mode, path)
+    FileMapper.source_extensions.map do |ext|
       return ".akro/#{mode}/#{path[0..-ext.length-1]}.depcache" if path.end_with?(ext)
     end
-    raise "#{path} is not one of: #{$CPP_EXTENSIONS.join(',')}"
+    raise "#{path} is not one of: #{FileMapper.source_extensions.join(',')}"
   end
-  def FileMapper.map_cpp_to_obj(mode, path)
-    $CPP_EXTENSIONS.map do |ext|
+  def FileMapper.map_src_to_obj(mode, path)
+    FileMapper.source_extensions.map do |ext|
       return "#{mode}/#{path[0..-ext.length-1]}#{$OBJ_EXTENSION}" if path.end_with?(ext)
     end
-    raise "#{path} is not one of: #{$CPP_EXTENSIONS.join(',')}"
+    raise "#{path} is not one of: #{FileMapper.source_extensions.join(',')}"
   end
-  # Maps depcache file to its corresponding cpp file, which should exist.
-  # E.g., .akro/release/a/b/c.o maps to a/b/c{.cpp,.cc,.cxx,.c++}
-  def FileMapper.map_dc_to_cpp(path)
+  # Maps depcache file to its corresponding source file, which should exist.
+  # E.g., .akro/release/a/b/c.o maps to a/b/c{.c,.cpp,.cc,.cxx,.c++}
+  def FileMapper.map_dc_to_src(path)
     raise "#{path} is not a .depcache file" if !path.end_with?('.depcache') || !path.start_with?('.akro')
     file = path[/^\.akro\/(.*)\.depcache$/, 1]
     file = FileMapper.strip_mode(file)
-    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}
+    srcs = FileMapper.find_sources_for_base(file)
     raise "Multiple sources for base name #{file}: #{srcs.join(' ')}" if srcs.length > 1
     raise "No sources for base name #{file}" if srcs.length == 0
     srcs[0]
@@ -107,11 +119,11 @@ module FileMapper
     raise "#{path} is not a .depcache file" if !path.end_with?('.depcache') || !path.start_with?('.akro')
     path.gsub(/\.depcache$/, ".compcmd" )
   end
-  def FileMapper.map_compcmd_to_cpp(path)
+  def FileMapper.map_compcmd_to_src(path)
     raise "#{path} is not a .compcmd file" if !path.end_with?('.compcmd') || !path.start_with?('.akro')
     file = path[/^\.akro\/(.*)\.compcmd$/, 1]
     file = FileMapper.strip_mode(file)
-    srcs = $CPP_EXTENSIONS.map{|ext| file + ext}.select{|fname| File.exist?(fname)}
+    srcs = FileMapper.find_sources_for_base(file)
     raise "Multiple sources for base name #{file}: #{srcs.join(' ')}" if srcs.length > 1
     raise "No sources for base name #{file}" if srcs.length == 0
     srcs[0]
@@ -134,15 +146,15 @@ module FileMapper
   def FileMapper.map_linkcmd_to_dynamic_lib(path)
     path[/^.akro\/(.*)\.dynlinkcmd$/, 1] + $DYNAMIC_LIB_EXTENSION
   end
-  # Maps header file to its corresponding cpp file, if it exists
-  # E.g., a/b/c.h maps to a/b/c.cpp, if a/b/c.cpp exists, otherwise nil
-  def FileMapper.map_header_to_cpp(path)
+  # Maps header file to its corresponding source file, if it exists.
+  # E.g., a/b/c.h maps to a/b/c.cpp or a/b/c.c if it exists, otherwise nil.
+  def FileMapper.map_header_to_src(path)
     rel_path = Util.make_relative_path(path)
     # file is not local
     return nil if rel_path.nil?
     srcs = $HEADER_EXTENSIONS.select{|ext| rel_path.end_with?(ext)}.collect{ |ext|
       base_path = rel_path[0..-ext.length-1]
-      $CPP_EXTENSIONS.map{|cppext| base_path + cppext}.select{|file| File.exist?(file)}
+      FileMapper.find_sources_for_base(base_path)
     }.flatten.uniq
     raise "Multiple sources for base name #{path}: #{srcs.join(' ')}" if srcs.length > 1
     srcs.length == 0? nil : srcs[0]
@@ -150,8 +162,26 @@ module FileMapper
    
   def FileMapper.map_script_to_exe(path)
     path_no_ext = path[/^(.*)[^.\/]*$/, 1]
-    srcs = $CPP_EXTENSIONS.map{|cppext| path + cppext}.select{|file| File.exist?(file)}
+    srcs = FileMapper.find_sources_for_base(path)
     srcs.length == 0? nil : path + ".exe"
+  end
+  def FileMapper.map_obj_to_cpp(path)
+    FileMapper.map_obj_to_src(path)
+  end
+  def FileMapper.map_cpp_to_dc(mode, path)
+    FileMapper.map_src_to_dc(mode, path)
+  end
+  def FileMapper.map_cpp_to_obj(mode, path)
+    FileMapper.map_src_to_obj(mode, path)
+  end
+  def FileMapper.map_dc_to_cpp(path)
+    FileMapper.map_dc_to_src(path)
+  end
+  def FileMapper.map_compcmd_to_cpp(path)
+    FileMapper.map_compcmd_to_src(path)
+  end
+  def FileMapper.map_header_to_cpp(path)
+    FileMapper.map_header_to_src(path)
   end
 end
 
@@ -223,22 +253,22 @@ module Builder
   end
 
   def Builder.depcache_object_collect(mode, top_level_srcs)
-    all_covered_cpps = Set.new
+    all_covered_srcs = Set.new
     all_objects = []
     srcs = top_level_srcs
     while !srcs.empty?
       new_srcs = [] 
-      dcs = srcs.map{|src| FileMapper.map_cpp_to_dc(mode, src)}
+      dcs = srcs.map{|src| FileMapper.map_src_to_dc(mode, src)}
       dcs.each{|dc| Rake::Task[dc].invoke}
       dcs.each do |dc|
-        cpp = FileMapper.map_dc_to_cpp(dc)
-        obj = FileMapper.map_cpp_to_obj(mode, cpp)
+        src = FileMapper.map_dc_to_src(dc)
+        obj = FileMapper.map_src_to_obj(mode, src)
         all_objects << obj if !all_objects.include?(obj)
         File.readlines(dc).map{|line| line.strip}.each do |header|
-          new_cpp = FileMapper.map_header_to_cpp(header)
-          if !new_cpp.nil? and !all_covered_cpps.include?(new_cpp)
-            new_srcs << new_cpp
-            all_covered_cpps << new_cpp
+          new_src = FileMapper.map_header_to_src(header)
+          if !new_src.nil? and !all_covered_srcs.include?(new_src)
+            new_srcs << new_src
+            all_covered_srcs << new_src
           end
         end
       end
@@ -253,7 +283,7 @@ task "always"
   
 rule ".compcmd" => ->(compcmd) {
   mode = FileMapper.get_mode_from_akpath(compcmd)
-  src = FileMapper.map_compcmd_to_cpp(compcmd)
+  src = FileMapper.map_compcmd_to_src(compcmd)
   cmd = CmdLine.compile_base_cmdline(mode, src)
   if File.exist?(compcmd) && File.read(compcmd).strip == cmd.strip then
     []
@@ -265,7 +295,7 @@ rule ".compcmd" => ->(compcmd) {
   FileUtils.mkdir_p(basedir)
   output = File.open(task.name, "w")
   mode = FileMapper.get_mode_from_akpath(task.name)
-  src = FileMapper.map_compcmd_to_cpp(task.name)
+  src = FileMapper.map_compcmd_to_src(task.name)
   output << CmdLine.compile_base_cmdline(mode, src) << "\n"
   output.close
 end
@@ -332,21 +362,21 @@ end
 
 
 rule ".depcache" => ->(dc){
-  [FileMapper.map_dc_to_compcmd(dc), FileMapper.map_dc_to_cpp(dc)] + 
+  [FileMapper.map_dc_to_compcmd(dc), FileMapper.map_dc_to_src(dc)] + 
   (File.exist?(dc) ? File.readlines(dc).map{|line| line.strip}.map{|file| File.exist?(file) ? file : "always"}: [])
 } do |task|
-  src = FileMapper.map_dc_to_cpp(task.name)
+  src = FileMapper.map_dc_to_src(task.name)
   Builder.create_depcache(src, task.name)
 end
 
 rule $OBJ_EXTENSION => ->(obj){
-  src = FileMapper.map_obj_to_cpp(obj)
+  src = FileMapper.map_obj_to_src(obj)
   raise "No source for object file #{obj}" if src.nil?
   dc = FileMapper.map_obj_to_dc(obj)
   [src, dc, FileMapper.map_dc_to_compcmd(dc)] +
   (File.exist?(dc) ? File.readlines(dc).map{|line| line.strip}: [])
 } do |task|
-  src = FileMapper.map_obj_to_cpp(task.name)
+  src = FileMapper.map_obj_to_src(task.name)
   Builder.compile_object(src, task.name)
 end
 
@@ -360,14 +390,14 @@ $LINK_LIBRARY_EXTRAFLAGS = Hash.new
 rule ".exe" => ->(binary){
   obj = binary.gsub(/\.exe$/, $OBJ_EXTENSION)
   mode = FileMapper.get_mode(binary)
-  cpp = FileMapper.map_obj_to_cpp(obj)
-  raise "No proper #{$CPP_EXTENSIONS.join(',')} file found for #{binary}" if cpp.nil?
+  src = FileMapper.map_obj_to_src(obj)
+  raise "No proper #{FileMapper.source_extensions.join(',')} file found for #{binary}" if src.nil?
   Rake::Task["#{mode}/all_capturing_libs"].invoke
   obj_list = []
   # Two passes through the object list - the capturing libraries will
   # be inserted on the position of the *last* object in the list
   last_obj = Hash.new
-  objs = Builder.depcache_object_collect(mode, [cpp])
+  objs = Builder.depcache_object_collect(mode, [src])
   objs.each do |obj|
     if $LIB_CAPTURE_MAP.has_key?(obj)
       last_obj[$LIB_CAPTURE_MAP[obj]] = obj
@@ -414,7 +444,7 @@ rule $STATIC_LIB_EXTENSION => ->(library) {
   if libspec.recurse
     objs = Builder.depcache_object_collect(mode, srcs)
   else
-    objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
+    objs = srcs.collect{|src| FileMapper.map_src_to_obj(mode, src)}
   end
   if libspec.capture_deps && !$CAPTURING_LIBS.include?(library)
     objs.each do |obj|
@@ -450,7 +480,7 @@ rule $DYNAMIC_LIB_EXTENSION => ->(library) {
   if libspec.recurse
     objs = Builder.depcache_object_collect(mode, srcs)
   else
-    objs = srcs.collect{|src| FileMapper.map_cpp_to_obj(mode, src)}
+    objs = srcs.collect{|src| FileMapper.map_src_to_obj(mode, src)}
   end
   if libspec.capture_deps && !$CAPTURING_LIBS.include?(library)
     objs.each do |obj|

@@ -73,6 +73,83 @@ struct PiApprox {
   static constexpr long double value = 4.0L * PiSumRange<0, Terms>::value;
 };
 
+constexpr unsigned long long pow10(std::size_t exponent) {
+  unsigned long long value = 1;
+  for (std::size_t i = 0; i < exponent; ++i) {
+    value *= 10ULL;
+  }
+  return value;
+}
+
+constexpr std::size_t decimal_digits(unsigned long long value) {
+  std::size_t digits = 1;
+  while (value >= 10ULL) {
+    value /= 10ULL;
+    ++digits;
+  }
+  return digits;
+}
+
+template <typename Approximation, std::size_t FractionalDigits>
+struct DecimalString {
+  static constexpr bool kNegative = Approximation::value < 0.0L;
+  static constexpr long double kAbsoluteValue =
+      kNegative ? -Approximation::value : Approximation::value;
+  static constexpr unsigned long long kScale = pow10(FractionalDigits);
+  static constexpr unsigned long long kScaledValue =
+      static_cast<unsigned long long>(
+          kAbsoluteValue * static_cast<long double>(kScale) + 0.5L);
+  static constexpr unsigned long long kIntegerPart = kScaledValue / kScale;
+  static constexpr unsigned long long kFractionalPart = kScaledValue % kScale;
+  static constexpr std::size_t kIntegerDigits = decimal_digits(kIntegerPart);
+  static constexpr std::size_t kLength =
+      (kNegative ? 1U : 0U) + kIntegerDigits +
+      (FractionalDigits == 0 ? 0U : 1U + FractionalDigits);
+
+  static constexpr std::array<char, kLength + 1> make() {
+    std::array<char, kLength + 1> out{};
+    std::size_t pos = 0;
+    if (kNegative) {
+      out[pos++] = '-';
+    }
+
+    unsigned long long integer = kIntegerPart;
+    std::array<char, kIntegerDigits> reversed{};
+    for (std::size_t i = 0; i < kIntegerDigits; ++i) {
+      reversed[i] = static_cast<char>('0' + (integer % 10ULL));
+      integer /= 10ULL;
+    }
+    for (std::size_t i = 0; i < kIntegerDigits; ++i) {
+      out[pos++] = reversed[kIntegerDigits - 1 - i];
+    }
+
+    if constexpr (FractionalDigits > 0) {
+      out[pos++] = '.';
+      unsigned long long divisor = kScale / 10ULL;
+      for (std::size_t i = 0; i < FractionalDigits; ++i) {
+        out[pos++] =
+            static_cast<char>('0' + ((kFractionalPart / divisor) % 10ULL));
+        if (divisor > 1ULL) {
+          divisor /= 10ULL;
+        }
+      }
+    }
+
+    out[kLength] = '\0';
+    return out;
+  }
+};
+
+template <typename Approximation, std::size_t FractionalDigits>
+inline constexpr auto decimal_string =
+    DecimalString<Approximation, FractionalDigits>::make();
+
+template <typename Approximation, std::size_t FractionalDigits>
+constexpr std::string_view decimal_string_view() {
+  return std::string_view(decimal_string<Approximation, FractionalDigits>.data(),
+                          DecimalString<Approximation, FractionalDigits>::kLength);
+}
+
 template <std::size_t Index>
 struct PhraseChar {
   static constexpr char kPattern[] = "AKRO_SYNTHETIC_META_BUILD_";

@@ -4,6 +4,7 @@
 #include <sstream>
 #include <string>
 
+#include "../c_support/telemetry.h"
 #include "../detail/cache_seed.h"
 #include "../math/compiled_constants.h"
 #include "../text/hidden_phrase.h"
@@ -14,7 +15,7 @@ const int kPipelineStride = 3 + (detail::kSeedBias % 5);
 
 std::array<int, 4> pipeline_window() {
   auto values = detail::cache_window();
-  const int offset = math::scaled_pi_window() % 13;
+  const int offset = (math::scaled_pi_window() + synth_telemetry_value()) % 13;
   for (std::size_t i = 0; i < values.size(); ++i) {
     values[i] += kPipelineStride * static_cast<int>(i + 1) + offset;
   }
@@ -24,7 +25,8 @@ std::array<int, 4> pipeline_window() {
 std::string pipeline_signature() {
   const auto values = pipeline_window();
   std::ostringstream out;
-  out << text::hidden_phrase().substr(0, 12) << ':' << detail::cache_marker();
+  out << text::hidden_phrase().substr(0, 12) << ':' << detail::cache_marker()
+      << ':' << synth_telemetry_label();
   for (int value : values) {
     out << ':' << value;
   }

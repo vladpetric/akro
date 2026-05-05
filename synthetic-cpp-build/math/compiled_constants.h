@@ -6,9 +6,13 @@
 namespace synth::math {
 
 extern const long double kPi512;
-extern const long double kPi1024;
+extern const long double kPi1048576;
 extern const long double kE512;
 extern const long double kE1024;
+extern const std::string_view kPi512ConstexprString;
+extern const std::string_view kPi1048576ConstexprString;
+extern const std::string_view kE512ConstexprString;
+extern const std::string_view kE1024ConstexprString;
 extern const std::string_view kBuildPhrase;
 extern const int kPrecisionBudget;
 

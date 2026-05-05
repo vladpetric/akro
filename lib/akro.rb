@@ -27,9 +27,15 @@ $VERBOSE_BUILD = false
 
 # Use $COMPILER_PREFIX for things like ccache
 $COMPILER_PREFIX = nil
-$COMPILER = "g++"
-$COMPILE_FLAGS = "-Wall"
-$MODE_COMPILE_FLAGS = {
+$CC = "gcc"
+$CXX = "g++"
+$CFLAGS = "-Wall"
+$CXXFLAGS = "-Wall"
+$MODE_CFLAGS = {
+  "debug" => "-g3",
+  "release" => "-O3 -g3"
+}
+$MODE_CXXFLAGS = {
   "debug" => "-g3",
   "release" => "-O3 -g3"
 }
@@ -39,8 +45,8 @@ $AR = "ar"
 # nil for linker means - use the same as the compiler
 $LINKER = nil
 $LINKER_PREFIX = nil
-$LINK_FLAGS = nil
-$MODE_LINK_FLAGS = nil
+$LDFLAGS = nil
+$MODE_LDFLAGS = nil
 # $ADDITIONAL_LINK_FLAGS is for third party libraries and objects
 $ADDITIONAL_LINK_FLAGS = ""
 
@@ -49,7 +55,8 @@ def windows?
 end
 
 $HEADER_EXTENSIONS = [".h", ".hpp", ".H"]
-$CPP_EXTENSIONS = [".c", ".cc", ".cpp", ".cxx", ".c++", ".C"]
+$C_EXTENSIONS = [".c"]
+$CXX_EXTENSIONS = [".cc", ".cpp", ".cxx", ".c++", ".C"]
 $OBJ_EXTENSION = ".o"
 $STATIC_LIB_EXTENSION = ".a"
 if windows?
@@ -134,12 +141,25 @@ end
 
 # Module with overrideable command line functions
 module CmdLine
+  def CmdLine.cxx_source?(src)
+    $CXX_EXTENSIONS.any? {|ext| src.end_with?(ext)}
+  end
+  def CmdLine.compile_flags_for(mode, src)
+    if CmdLine.cxx_source?(src)
+      [$CXXFLAGS, $MODE_CXXFLAGS[mode]].compact.join(" ").strip
+    else
+      [$CFLAGS, $MODE_CFLAGS[mode]].compact.join(" ").strip
+    end
+  end
+  def CmdLine.compiler_for(src)
+    CmdLine.cxx_source?(src) ? $CXX : $CC
+  end
   def CmdLine.compile_base_cmdline(mode, src)
     per_file_flags = $PER_FILE_COMPILE_FLAGS.call(mode, src)
     if per_file_flags.size() > 0
       per_file_flags = " " + per_file_flags
     end
-    "#{$COMPILER_PREFIX}#{$COMPILER} #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]}#{per_file_flags}"
+    "#{$COMPILER_PREFIX}#{CmdLine.compiler_for(src)} #{CmdLine.compile_flags_for(mode, src)}#{per_file_flags}".strip
   end
   def CmdLine.dependency_cmdline(mode, src)
     "#{CmdLine.compile_base_cmdline(mode, src)} -M #{src}"
@@ -147,10 +167,49 @@ module CmdLine
   def CmdLine.compile_cmdline(mode, src, obj)
     "#{CmdLine.compile_base_cmdline(mode, src)} -c #{src} -o #{obj}"
   end
+  def CmdLine.artifact_requires_cxx?(artifact, seen = Set.new)
+    return false if seen.include?(artifact)
+    seen << artifact
+    if artifact.end_with?($OBJ_EXTENSION)
+      src = FileMapper.map_obj_to_src(artifact)
+      !src.nil? && FileMapper.cxx_source?(src)
+    elsif (artifact.end_with?($STATIC_LIB_EXTENSION) || artifact.end_with?($DYNAMIC_LIB_EXTENSION)) &&
+          $LINK_BINARY_OBJS.has_key?(artifact)
+      CmdLine.requires_cxx?($LINK_BINARY_OBJS[artifact], seen)
+    else
+      false
+    end
+  end
+  def CmdLine.requires_cxx?(artifacts, seen = Set.new)
+    artifacts.any? {|artifact| CmdLine.artifact_requires_cxx?(artifact, seen)}
+  end
+  def CmdLine.linker_for(objs)
+    return $LINKER if !$LINKER.nil?
+    CmdLine.requires_cxx?(objs) ? $CXX : $CC
+  end
+  def CmdLine.link_flags_for(mode, objs)
+    base_flags =
+      if !$LDFLAGS.nil?
+        $LDFLAGS
+      elsif CmdLine.requires_cxx?(objs)
+        $CXXFLAGS
+      else
+        $CFLAGS
+      end
+    mode_flags =
+      if !$MODE_LDFLAGS.nil?
+        $MODE_LDFLAGS[mode]
+      elsif CmdLine.requires_cxx?(objs)
+        $MODE_CXXFLAGS[mode]
+      else
+        $MODE_CFLAGS[mode]
+      end
+    [base_flags, mode_flags].compact.join(" ").strip
+  end
   def CmdLine.link_cmdline(mode, objs, bin)
     nomodebin = FileMapper.strip_mode(bin)
     per_file_flags = if $BIN_EXTRA_FLAGS.has_key?(nomodebin) then " " + $BIN_EXTRA_FLAGS[nomodebin] else "" end
-    "#{$LINKER_PREFIX}#{$LINKER} #{$LINK_FLAGS} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS}#{per_file_flags} #{$MODE_LINK_FLAGS[mode]} -o #{bin}"
+    "#{$LINKER_PREFIX}#{CmdLine.linker_for(objs)} #{CmdLine.link_flags_for(mode, objs)} #{objs.join(' ')} #{$ADDITIONAL_LINK_FLAGS}#{per_file_flags} -o #{bin}".strip
   end
   def CmdLine.static_lib_cmdline(objs, bin)
     "#{$AR} rcs #{bin} #{objs.join(' ')}"
@@ -168,7 +227,7 @@ module CmdLine
       extra_params = ""
     end
     soname = if bin.include?("/") then FileMapper.strip_mode(bin) else bin end
-    "#{$LINKER_PREFIX}#{$COMPILER} -shared #{$COMPILE_FLAGS} #{$MODE_COMPILE_FLAGS[mode]} -Wl,-soname,#{soname} -o #{bin} #{objs.join(' ')}#{extra_params}"
+    "#{$LINKER_PREFIX}#{CmdLine.linker_for(objs)} -shared #{CmdLine.link_flags_for(mode, objs)} -Wl,-soname,#{soname} -o #{bin} #{objs.join(' ')}#{extra_params}".strip
   end
 end
 

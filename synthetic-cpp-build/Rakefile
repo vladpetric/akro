@@ -1,1 +1,3 @@
-add_binary path: "synthetic_main.exe"
+$CXXFLAGS = "#{$CXXFLAGS} -ftemplate-depth=32768"
+
+add_binary path: ["synthetic_main.exe", "c_support_probe.exe"]
